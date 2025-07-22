@@ -1,0 +1,1187 @@
+<!DOCTYPE html>
+<html lang="it" class="dark">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, shrink-to-fit=no" />
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
+    <title>Dashboard Clienti - Sync Diretto</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.1/jspdf.plugin.autotable.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+        :root { --bg-light: #f0f9ff; --text-light: #0c4a6e; --bg-dark: #0a0a0a; --text-dark: #e5e7eb; }
+        html, body { overflow-x: hidden; }
+        body {
+            overflow-y: auto;
+            font-family: 'Inter', sans-serif; 
+            background-color: var(--bg-light); 
+            color: var(--text-light); 
+            transition: all 0.3s ease; 
+            background-size: cover; 
+            background-position: center; 
+            background-attachment: fixed;
+        }
+        html.dark body { background-color: var(--bg-dark); color: var(--text-dark); }
+        .panel-bg { 
+            background: rgba(255, 255, 255, 0.95); 
+            backdrop-filter: blur(20px) saturate(180%); 
+            -webkit-backdrop-filter: blur(20px) saturate(180%); 
+            border: 1px solid rgba(255, 255, 255, 0.3); 
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.15); 
+        }
+        html.dark .panel-bg { 
+            background: rgba(30, 30, 30, 0.95); 
+            border: 1px solid rgba(255, 255, 255, 0.15); 
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3); 
+        }
+        .form-input, textarea.form-input { 
+            width: 100%; 
+            padding: 0.75rem 1rem; 
+            border: 2px solid transparent; 
+            border-radius: 0.5rem; 
+            background: rgba(255, 255, 255, 0.9); 
+            transition: all 0.3s ease; 
+            font-size: 0.95rem; 
+            color: #1f2937;
+        }
+        html.dark .form-input, html.dark textarea.form-input { 
+            background: rgba(55, 65, 81, 0.8); 
+            color: #f3f4f6; 
+        }
+        .form-input:focus, textarea.form-input:focus { 
+            outline: none; 
+            border-color: #6366f1; 
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1); 
+            transform: translateY(-1px); 
+        }
+        .form-label { 
+            display: block; 
+            font-size: 0.875rem; 
+            font-weight: 600; 
+            margin-bottom: 0.5rem; 
+            color: #374151; 
+            letter-spacing: 0.025em; 
+        }
+        html.dark .form-label { color: #d1d5db; }
+        .client-card { 
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); 
+            border-color: transparent; 
+        }
+        .client-card:hover { 
+            transform: translateY(-6px) scale(1.02); 
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04); 
+            border-color: rgba(99, 102, 241, 0.3); 
+        }
+        html.dark .client-card:hover { 
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3), 0 10px 10px -5px rgba(0, 0, 0, 0.2); 
+        }
+        .status-badge { 
+            padding: 0.4em 1em; 
+            border-radius: 9999px; 
+            font-size: 0.75rem; 
+            font-weight: 700; 
+            text-transform: uppercase; 
+            white-space: nowrap; 
+            letter-spacing: 0.05em; 
+            background: linear-gradient(135deg, var(--badge-bg-1) 0%, var(--badge-bg-2) 100%); 
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); 
+        }
+        .status-in-delibera { --badge-bg-1: #6ee7b7; --badge-bg-2: #34d399; color: #065f46; }
+        .status-non-interessato { --badge-bg-1: #fca5a5; --badge-bg-2: #f87171; color: #7f1d1d; }
+        .status-inviato-documenti { --badge-bg-1: #fde047; --badge-bg-2: #facc15; color: #713f12; }
+        .status-risentire-piu-avanti { --badge-bg-1: #7dd3fc; --badge-bg-2: #38bdf8; color: #075985; }
+        .status-fissato { --badge-bg-1: #86efac; --badge-bg-2: #4ade80; color: #14532d; }
+        .status-non-risponde { --badge-bg-1: #fecaca; --badge-bg-2: #fca5a5; color: #7f1d1d; }
+        .status-annullato { --badge-bg-1: #e5e7eb; --badge-bg-2: #d1d5db; color: #374151; }
+        .status-altro { --badge-bg-1: #e0e7ff; --badge-bg-2: #c7d2fe; color: #312e81; }
+        .status-nuovo-cliente { --badge-bg-1: #ddd6fe; --badge-bg-2: #c4b5fd; color: #5b21b6; }
+        .status-mandato-firmato { --badge-bg-1: #86efac; --badge-bg-2: #34d399; color: #064e3b; font-weight: 800; }
+        .toast { 
+            position: fixed; 
+            bottom: 30px; 
+            right: 30px; 
+            padding: 1rem 1.5rem; 
+            color: #fff; 
+            border-radius: 12px; 
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2); 
+            z-index: 2000; 
+            animation: slideIn .4s ease-out, fadeOut .3s ease-in 3.7s forwards; 
+            font-weight: 500; 
+        }
+        @keyframes slideIn { from { transform: translateX(120%); } to { transform: translateX(0); } }
+        @keyframes fadeOut { from { opacity: 1; } to { opacity: 0; } }
+        .toast.success { background: linear-gradient(135deg, #10b981 0%, #059669 100%); }
+        .toast.error { background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); }
+        .toast.warning { background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); }
+        .modal-backdrop { 
+            position: fixed; 
+            top: 0; 
+            left: 0; 
+            right: 0; 
+            bottom: 0; 
+            background-color: rgba(0, 0, 0, 0.7); 
+            backdrop-filter: blur(8px); 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            opacity: 0; 
+            visibility: hidden; 
+            transition: all 0.3s ease; 
+            z-index: 1000; 
+        }
+        .modal-backdrop.active { opacity: 1; visibility: visible; }
+        .modal-content { 
+            background: rgba(255, 255, 255, 0.98); 
+            padding: 2.5rem; 
+            border-radius: 1rem; 
+            width: 90%; 
+            max-width: 700px; 
+            transform: scale(0.9) translateY(20px); 
+            transition: all 0.3s ease; 
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); 
+        }
+        html.dark .modal-content { 
+            background: rgba(31, 41, 55, 0.98); 
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); 
+        }
+        .modal-backdrop.active .modal-content { transform: scale(1) translateY(0); }
+        #loader { 
+            border: 4px solid rgba(243, 244, 246, 0.3); 
+            border-top: 4px solid #6366f1; 
+            border-radius: 50%; 
+            width: 60px; 
+            height: 60px; 
+            animation: spin 0.8s linear infinite; 
+            position: fixed; 
+            top: 50%; 
+            left: 50%; 
+            margin-top: -30px; 
+            margin-left: -30px; 
+            z-index: 3000; 
+            box-shadow: 0 0 20px rgba(99, 102, 241, 0.3); 
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .btn { 
+            padding: 0.5rem 1rem; 
+            border-radius: 0.5rem; 
+            font-weight: 600; 
+            transition: all 0.3s ease; 
+            text-transform: uppercase; 
+            letter-spacing: 0.025em; 
+            font-size: 0.875rem; 
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); 
+            border: none;
+            cursor: pointer;
+        }
+        .btn:hover { 
+            transform: translateY(-2px); 
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); 
+        }
+        .stat-card { position: relative; overflow: hidden; }
+        .stat-card::before { 
+            content: ''; 
+            position: absolute; 
+            top: 0; 
+            left: -100%; 
+            width: 100%; 
+            height: 100%; 
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent); 
+            transition: left 0.5s; 
+        }
+        .stat-card:hover::before { left: 100%; }
+        ::-webkit-scrollbar { width: 10px; height: 10px; }
+        ::-webkit-scrollbar-track { background: rgba(0, 0, 0, 0.1); border-radius: 10px; }
+        ::-webkit-scrollbar-thumb { background: rgba(99, 102, 241, 0.5); border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(99, 102, 241, 0.7); }
+        
+        .sync-indicator {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            font-size: 0.875rem;
+            font-weight: 600;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s ease;
+        }
+        .sync-indicator.synced {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+        }
+        .sync-indicator.syncing {
+            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+            color: white;
+        }
+        .sync-indicator.error {
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+            color: white;
+        }
+        .backup-link {
+            position: relative;
+            display: inline-block;
+            padding: 0.5rem 1rem;
+            background: rgba(99, 102, 241, 0.1);
+            border: 1px solid rgba(99, 102, 241, 0.3);
+            border-radius: 0.5rem;
+            font-family: monospace;
+            font-size: 0.75rem;
+            word-break: break-all;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .backup-link:hover {
+            background: rgba(99, 102, 241, 0.2);
+            transform: translateY(-1px);
+        }
+        html.dark .backup-link {
+            background: rgba(99, 102, 241, 0.2);
+            border-color: rgba(99, 102, 241, 0.4);
+        }
+        .glitch-notice {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(99, 102, 241, 0.95);
+            color: white;
+            padding: 2rem;
+            border-radius: 1rem;
+            text-align: center;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            z-index: 5000;
+            max-width: 500px;
+            margin: 0 1rem;
+        }
+        .glitch-notice h3 {
+            margin-bottom: 1rem;
+            font-size: 1.5rem;
+            font-weight: 700;
+        }
+        .glitch-notice p {
+            margin-bottom: 1.5rem;
+            line-height: 1.6;
+        }
+        .glitch-notice .setup-steps {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 1rem;
+            border-radius: 0.5rem;
+            margin: 1rem 0;
+            text-align: left;
+        }
+        .glitch-notice .setup-steps ol {
+            margin-left: 1rem;
+        }
+        .glitch-notice .setup-steps li {
+            margin: 0.5rem 0;
+            font-size: 0.9rem;
+        }
+        .glitch-notice button {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+        .glitch-notice button:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: translateY(-2px);
+        }
+    </style>
+</head>
+<body>
+    <div class="sync-indicator syncing" id="syncIndicator">
+        <i class="fas fa-sync-alt fa-spin"></i> Connessione...
+    </div>
+
+    <div class="min-h-screen p-4 sm:p-6 lg:p-8">
+        <main class="max-w-7xl mx-auto w-full">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8">
+                <div class="panel-bg p-6 rounded-2xl shadow-xl">
+                    <h1 class="text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-500 to-purple-600">Dashboard Clienti</h1>
+                    <p class="text-gray-600 dark:text-gray-400 mt-2">Gestisci e visualizza i tuoi contatti con facilità - Versione Glitch</p>
+                </div>
+                <div class="flex items-center flex-wrap justify-center gap-3 mt-6 sm:mt-0 panel-bg p-4 rounded-2xl shadow-xl">
+                    <a href="https://bfspartner22.my.site.com/s/login/?ec=302&startURL=%2Fs%2F%3Ftabset-eb989%3Dtab2" target="_blank" class="btn bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-blue-700"><i class="fas fa-chart-line mr-2"></i>BFS PARTNER</a>
+                    <a href="https://ambico.3connect.it/" target="_blank" class="btn bg-gradient-to-r from-green-500 to-green-600 text-white hover:from-green-600 hover:to-green-700"><i class="fas fa-building mr-2"></i>AMBICO</a>
+                    <a href="https://music.youtube.com/" target="_blank" class="btn bg-gradient-to-r from-red-500 to-red-600 text-white hover:from-red-600 hover:to-red-700"><i class="fas fa-music mr-2"></i>FOCUS FLOW</a>
+                    <a href="https://www.perplexity.ai/?login-source=floatingSignup" target="_blank" class="btn bg-gradient-to-r from-gray-700 to-gray-900 text-white hover:from-gray-800 hover:to-black"><i class="fas fa-search mr-2"></i>PERPLEXITY</a>
+                    <a href="https://chatgpt.com/" target="_blank" class="btn bg-gradient-to-r from-teal-500 to-teal-600 text-white hover:from-teal-600 hover:to-teal-700"><i class="fas fa-robot mr-2"></i>GPT</a>
+                    <a href="https://gemini.google.com/app" target="_blank" class="btn bg-gradient-to-r from-blue-400 to-blue-500 text-white hover:from-blue-500 hover:to-blue-600"><i class="fas fa-gem mr-2"></i>GEMINI</a>
+                    <a href="https://aistudio.google.com/u/0/prompts/new_chat" target="_blank" class="btn bg-gradient-to-r from-yellow-400 to-yellow-500 text-white hover:from-yellow-500 hover:to-yellow-600"><i class="fas fa-brain mr-2"></i>AI STUDIO</a>
+                    <a href="https://www.canva.com/" target="_blank" class="btn bg-gradient-to-r from-purple-500 to-purple-600 text-white hover:from-purple-600 hover:to-purple-700"><i class="fas fa-palette mr-2"></i>CANVA</a>
+                    <div class="w-full border-t border-gray-300 dark:border-gray-600 my-3"></div>
+                    <button id="resetBackgroundButton" class="text-sm px-3 py-1 text-gray-600 dark:text-gray-300 hover:text-red-500 transition-colors"><i class="fas fa-undo mr-1"></i>Reset Sfondo</button>
+                    <label for="backgroundInput" class="cursor-pointer text-sm px-3 py-1 text-gray-600 dark:text-gray-300 hover:text-indigo-500"><i class="fas fa-image mr-1"></i>Cambia Sfondo</label>
+                    <input type="file" id="backgroundInput" class="hidden" accept="image/*">
+                    <div class="flex items-center gap-3">
+                        <span class="text-sm font-medium">Light</span>
+                        <button id="theme-toggle" class="relative inline-flex items-center h-6 rounded-full w-12 transition-colors bg-gray-300 dark:bg-indigo-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                            <span class="sr-only">Toggle theme</span>
+                            <span class="inline-block w-5 h-5 transform bg-white rounded-full transition-transform translate-x-0.5 dark:translate-x-6 shadow-md"></span>
+                        </button>
+                        <span class="text-sm font-medium">Dark</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
+                <div class="stat-card panel-bg p-6 rounded-2xl shadow-xl"><h4 class="text-sm font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">Clienti Totali</h4><p id="totalClients" class="text-4xl font-bold mt-2 bg-clip-text text-transparent bg-gradient-to-r from-blue-500 to-indigo-600">0</p></div>
+                <div class="stat-card panel-bg p-6 rounded-2xl shadow-xl"><h4 class="text-sm font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">Appuntamenti Oggi</h4><p id="appointmentsToday" class="text-4xl font-bold mt-2 bg-clip-text text-transparent bg-gradient-to-r from-green-500 to-teal-600">0</p></div>
+                <div class="stat-card panel-bg p-6 rounded-2xl shadow-xl"><h4 class="text-sm font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">Risentire più avanti</h4><p id="toFollowUp" class="text-4xl font-bold mt-2 bg-clip-text text-transparent bg-gradient-to-r from-yellow-500 to-orange-600">0</p></div>
+                <div class="stat-card panel-bg p-6 rounded-2xl shadow-xl"><h4 class="text-sm font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">Mandati Firmati</h4><p id="mandatiFirmati" class="text-4xl font-bold mt-2 bg-clip-text text-transparent bg-gradient-to-r from-purple-500 to-pink-600">0</p></div>
+                <div class="stat-card panel-bg p-6 rounded-2xl shadow-xl"><h4 class="text-sm font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">Tasso Successo</h4><p id="successRate" class="text-4xl font-bold mt-2 bg-clip-text text-transparent bg-gradient-to-r from-indigo-500 to-purple-600">0%</p></div>
+            </div>
+            
+            <div class="panel-bg p-6 rounded-2xl shadow-xl mb-8 space-y-6">
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <input type="text" id="filterCliente" placeholder="Filtra per nome cliente..." class="form-input">
+                    <input type="text" id="filterCitta" placeholder="Filtra per città..." class="form-input">
+                    <select id="filterStato" class="form-input">
+                        <option value="">Tutti gli stati</option>
+                        <option value="NUOVO CLIENTE">Nuovo Cliente</option><option value="FISSATO">Fissato</option><option value="NON RISPONDE">Non Risponde</option><option value="RISENTIRE PIÙ AVANTI">Risentire più avanti</option><option value="NON INTERESSATO">Non Interessato</option><option value="ANNULLATO">Annullato</option><option value="IN DELIBERA">In Delibera</option><option value="INVIATO DOCUMENTI">Inviato Documenti</option><option value="MANDATO FIRMATO">Mandato Firmato</option><option value="ALTRO">Altro</option>
+                    </select>
+                    <button id="applyFilters" class="btn bg-gradient-to-r from-indigo-500 to-purple-600 text-white hover:from-indigo-600 hover:to-purple-700"><i class="fas fa-filter mr-2"></i>Applica Filtri</button>
+                </div>
+                <div class="border-t border-gray-300 dark:border-gray-700 pt-6 flex flex-wrap gap-3 items-center">
+                    <button id="addClientButton" class="btn bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:from-green-600 hover:to-emerald-700"><i class="fas fa-plus mr-2"></i>Aggiungi Cliente</button>
+                    <button id="syncButton" class="btn bg-gradient-to-r from-cyan-500 to-blue-500 text-white hover:from-cyan-600 hover:to-blue-600"><i class="fas fa-sync-alt mr-2"></i>Sincronizza</button>
+                    <button id="clearDataButton" class="btn bg-gradient-to-r from-red-500 to-red-600 text-white hover:from-red-600 hover:to-red-700"><i class="fas fa-trash mr-2"></i>Azzera Dati Cloud</button>
+                    <button id="setupCloudButton" class="btn bg-gradient-to-r from-purple-500 to-purple-600 text-white hover:from-purple-600 hover:to-purple-700"><i class="fas fa-cloud-upload-alt mr-2"></i>Setup Cloud</button>
+                    <div class="flex gap-3 flex-wrap flex-grow sm:flex-grow-0 sm:ml-auto">
+                        <label for="fileInput" class="cursor-pointer btn bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-blue-700"><i class="fas fa-upload mr-2"></i>Importa Dati</label>
+                        <input type="file" id="fileInput" class="hidden" accept=".xlsx,.xls,.csv,.json">
+                        <button id="exportJsonButton" class="btn bg-gradient-to-r from-orange-500 to-orange-600 text-white hover:from-orange-600 hover:to-orange-700"><i class="fas fa-download mr-2"></i>Esporta JSON</button>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="loader" style="display:none;"></div>
+            <div id="clientList" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+        </main>
+    </div>
+
+    <div id="clientModal" class="modal-backdrop">
+        <div class="modal-content">
+            <h2 id="modalTitle" class="text-3xl font-bold mb-8 bg-clip-text text-transparent bg-gradient-to-r from-indigo-500 to-purple-600"></h2>
+            <form id="clientForm">
+                <div class="modal-body grid grid-cols-1 md:grid-cols-2 gap-5" style="max-height: 70vh; overflow-y: auto; padding-right: 1rem;">
+                    <div class="col-span-full"><label for="OGGETTO" class="form-label">Oggetto</label><input type="text" name="OGGETTO" class="form-input"></div>
+                    <div><label for="CLIENTE" class="form-label">Ragione Sociale *</label><input type="text" name="CLIENTE" class="form-input" required></div>
+                    <div><label for="P_IVA" class="form-label">P.IVA</label><input type="text" name="P_IVA" class="form-input"></div>
+                    <div><label for="INIZIO" class="form-label">Data/Ora Appuntamento</label><input type="datetime-local" name="INIZIO" class="form-input"></div>
+                    <div><label for="NOME_REFERENTE" class="form-label">Nome Referente</label><input type="text" name="NOME_REFERENTE" class="form-input"></div>
+                    <div>
+                        <label for="ESITO" class="form-label">Esito</label>
+                        <select name="ESITO" class="form-input">
+                            <option value="NUOVO CLIENTE">Nuovo Cliente</option><option value="FISSATO">Fissato</option><option value="NON RISPONDE">Non Risponde</option><option value="RISENTIRE PIÙ AVANTI">Risentire più avanti</option><option value="NON INTERESSATO">Non Interessato</option><option value="ANNULLATO">Annullato</option><option value="IN DELIBERA">In Delibera</option><option value="INVIATO DOCUMENTI">Inviato Documenti</option><option value="MANDATO FIRMATO">Mandato Firmato</option><option value="ALTRO">Altro</option>
+                        </select>
+                    </div>
+                    <div><label for="CHIUSO_NEGATIVO" class="form-label">Chiuso Negativo</label><input type="text" name="CHIUSO_NEGATIVO" class="form-input"></div>
+                    <div class="col-span-full"><label for="CAMPAGNA_RIFERIMENTO" class="form-label">Campagna di Riferimento</label><input type="text" name="CAMPAGNA_RIFERIMENTO" class="form-input"></div>
+                    <div class="col-span-full"><label for="INDIRIZZO" class="form-label">Indirizzo</label><input type="text" name="INDIRIZZO" class="form-input"></div>
+                    <div><label for="CITTA" class="form-label">Città</label><input type="text" name="CITTA" class="form-input"></div>
+                    <div><label for="CAP" class="form-label">CAP</label><input type="text" name="CAP" class="form-input"></div>
+                    <div><label for="TELEFONO" class="form-label">Telefono</label><input type="tel" name="TELEFONO" class="form-input"></div>
+                    <div><label for="CELL" class="form-label">Cellulare</label><input type="tel" name="CELL" class="form-input"></div>
+                    <div class="col-span-full"><label for="EMAIL" class="form-label">Email</label><input type="email" name="EMAIL" class="form-input"></div>
+                    <div class="col-span-full"><label for="SITO" class="form-label">Sito Web</label><input type="url" name="SITO" class="form-input" placeholder="https://esempio.com"></div>
+                    <div><label for="DATA_CREAZIONE" class="form-label">Data Creazione</label><input type="date" name="DATA_CREAZIONE" class="form-input" readonly></div>
+                    <div><label for="DATA_ULTIMA_MODIFICA" class="form-label">Data Ultima Modifica</label><input type="date" name="DATA_ULTIMA_MODIFICA" class="form-input" readonly></div>
+                    <div class="col-span-full"><label for="NOTE" class="form-label">Note</label><textarea name="NOTE" class="form-input" rows="4" style="resize: vertical;"></textarea></div>
+                </div>
+                <div class="mt-8 flex flex-wrap justify-end gap-4">
+                    <button type="button" id="modalCancel" class="btn bg-gray-300 dark:bg-gray-700 text-gray-800 dark:text-gray-200 hover:bg-gray-400 dark:hover:bg-gray-600"><i class="fas fa-times mr-2"></i>Annulla</button>
+                    <button type="submit" class="btn bg-gradient-to-r from-indigo-500 to-purple-600 text-white hover:from-indigo-600 hover:to-purple-700"><i class="fas fa-save mr-2"></i>Salva Cliente</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <div id="confirmDialog" class="modal-backdrop">
+        <div class="modal-content max-w-md">
+            <h2 id="confirmTitle" class="text-2xl font-bold mb-6"></h2>
+            <p id="confirmMessage" class="text-gray-600 dark:text-gray-300 mb-8"></p>
+            <div id="confirmActions" class="flex justify-end gap-4">
+                <button id="confirmCancel" class="btn bg-gray-300 dark:bg-gray-700 text-gray-800 dark:text-gray-200 hover:bg-gray-400 dark:hover:bg-gray-600"><i class="fas fa-times mr-2"></i>Annulla</button>
+                <button id="confirmOk" class="btn bg-gradient-to-r from-red-500 to-red-600 text-white hover:from-red-600 hover:to-red-700"><i class="fas fa-check mr-2"></i>Conferma</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="cloudSetupModal" class="modal-backdrop">
+        <div class="modal-content max-w-2xl">
+            <h2 class="text-3xl font-bold mb-8 bg-clip-text text-transparent bg-gradient-to-r from-indigo-500 to-purple-600">Setup Cloud Storage</h2>
+            <div class="space-y-6">
+                <div class="bg-blue-50 dark:bg-blue-900 p-4 rounded-lg">
+                    <h3 class="text-lg font-semibold mb-3"><i class="fas fa-cloud mr-2"></i>Configurazione JSONBin.io</h3>
+                    <div class="setup-steps">
+                        <ol class="list-decimal space-y-2 text-sm">
+                            <li>Vai su <a href="https://jsonbin.io" target="_blank" class="text-blue-600 hover:underline">jsonbin.io</a> e crea un account gratuito</li>
+                            <li>Nella dashboard, clicca sul tuo profilo → "API Keys" e copia la tua API Key</li>
+                            <li>Crea un nuovo "Bin" (contenitore vuoto) e copia il BIN ID dall'URL</li>
+                            <li>Inserisci le credenziali qui sotto:</li>
+                        </ol>
+                    </div>
+                </div>
+                
+                <div class="grid grid-cols-1 gap-4">
+                    <div>
+                        <label for="apiKeyInput" class="form-label">API Key</label>
+                        <input type="text" id="apiKeyInput" class="form-input" placeholder="Inserisci la tua API Key JSONBin.io">
+                    </div>
+                    <div>
+                        <label for="binIdInput" class="form-label">BIN ID</label>
+                        <input type="text" id="binIdInput" class="form-input" placeholder="Inserisci il BIN ID del tuo contenitore">
+                    </div>
+                </div>
+                
+                <div class="bg-yellow-50 dark:bg-yellow-900 p-4 rounded-lg">
+                    <p class="text-sm"><i class="fas fa-info-circle mr-2"></i>Le credenziali verranno salvate localmente nel tuo browser. Assicurati di non condividere queste informazioni.</p>
+                </div>
+            </div>
+            
+            <div class="mt-8 flex justify-end gap-4">
+                <button id="cloudSetupCancel" class="btn bg-gray-300 dark:bg-gray-700 text-gray-800 dark:text-gray-200 hover:bg-gray-400 dark:hover:bg-gray-600"><i class="fas fa-times mr-2"></i>Annulla</button>
+                <button id="cloudSetupSave" class="btn bg-gradient-to-r from-indigo-500 to-purple-600 text-white hover:from-indigo-600 hover:to-purple-700"><i class="fas fa-save mr-2"></i>Salva Configurazione</button>
+            </div>
+        </div>
+    </div>
+
+<script>
+// =================================================================================
+// == CONFIGURAZIONE CLOUD STORAGE ==
+// =================================================================================
+let JSONBIN_API_KEY = localStorage.getItem('jsonbin_api_key') || '';
+let JSONBIN_BIN_ID = localStorage.getItem('jsonbin_bin_id') || '';
+
+/***** STATO GLOBALE *****/
+const THEME_KEY = 'gestionaleClienti_theme_v30_glitch';
+const BG_KEY = 'gestionaleClienti_background_v30_glitch';
+let clientData = []; 
+let filteredClients = []; 
+let editingId = null;
+let currentConfirmCallbacks = { onConfirm: () => {}, onCancel: () => {} };
+
+/***** CACHE DEGLI ELEMENTI DOM *****/
+const $ = (id) => document.getElementById(id);
+const dom = {
+    clientList: $('clientList'), loader: $('loader'),
+    fNome: $('filterCliente'), fCitta: $('filterCitta'), fStato: $('filterStato'),
+    btnFiltra: $('applyFilters'),
+    file: $('fileInput'),
+    btnJSON: $('exportJsonButton'),
+    btnClear: $('clearDataButton'),
+    total: $('totalClients'), today: $('appointmentsToday'), follow: $('toFollowUp'),
+    rate: $('successRate'), mandatiFirmati: $('mandatiFirmati'),
+    modal: $('clientModal'), modalTitle: $('modalTitle'), btnAdd: $('addClientButton'),
+    form: $('clientForm'), btnModalCancel: $('modalCancel'),
+    dlg: $('confirmDialog'), dlgTitle: $('confirmTitle'), dlgMsg: $('confirmMessage'),
+    dlgActions: $('confirmActions'), dlgOk: $('confirmOk'), dlgCancel: $('confirmCancel'),
+    themeToggle: $('theme-toggle'),
+    bgInput: $('backgroundInput'),
+    btnResetBg: $('resetBackgroundButton'),
+    syncIndicator: $('syncIndicator'),
+    syncButton: $('syncButton'),
+    setupCloudButton: $('setupCloudButton'),
+    cloudSetupModal: $('cloudSetupModal'),
+    apiKeyInput: $('apiKeyInput'),
+    binIdInput: $('binIdInput'),
+    cloudSetupSave: $('cloudSetupSave'),
+    cloudSetupCancel: $('cloudSetupCancel')
+};
+
+/***** FUNZIONI DI UTILITÀ *****/
+const toast = (m, t = 'success') => { 
+    const el = document.createElement('div'); 
+    el.className = `toast ${t}`; 
+    el.innerHTML = `<i class="fas fa-${t === 'success' ? 'check' : t === 'error' ? 'times' : 'exclamation'}-circle mr-2"></i>${m}`; 
+    document.body.append(el); 
+    setTimeout(() => el.remove(), 4000);
+};
+
+const updateSyncIndicator = (status, message) => {
+    const indicator = dom.syncIndicator;
+    indicator.className = `sync-indicator ${status}`;
+    const icons = {
+        synced: 'check-circle',
+        syncing: 'sync-alt fa-spin',
+        error: 'exclamation-triangle'
+    };
+    indicator.innerHTML = `<i class="fas fa-${icons[status]}"></i> ${message}`;
+};
+
+const getTodayString = () => new Date().toISOString().split('T')[0];
+const genId = () => `c_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
+const esc = txt => txt ? String(txt).replace(/[&<>"']/g, c => ({ "&": "&", "<": "<", ">": ">", '"': '"', "'": ''' }[c])) : '';
+const normalizeUrl = (url) => { 
+    if (!url) return ''; 
+    const trimmed = url.trim(); 
+    if (!trimmed) return ''; 
+    return trimmed.startsWith('http') ? trimmed : `https://${trimmed}`; 
+};
+
+const statusClass = s => {
+    const m = s?.toLowerCase().trim() || '';
+    if (m.includes('in delibera')) return 'status-in-delibera';
+    if (m.includes('non interessato')) return 'status-non-interessato';
+    if (m.includes('inviato documenti')) return 'status-inviato-documenti';
+    if (m.includes('risentire più avanti')) return 'status-risentire-piu-avanti';
+    if (m.includes('fissato')) return 'status-fissato';
+    if (m.includes('non risponde')) return 'status-non-risponde';
+    if (m.includes('annullato')) return 'status-annullato';
+    if (m.includes('nuovo cliente')) return 'status-nuovo-cliente';
+    if (m.includes('mandato firmato')) return 'status-mandato-firmato';
+    return 'status-altro';
+};
+
+const formatItalianDate = (dateString) => {
+    if(!dateString) return null;
+    try { 
+        const date = new Date(dateString.split('T')[0]); 
+        if(isNaN(date.getTime())) return dateString; 
+        return new Intl.DateTimeFormat('it-IT').format(date); 
+    } catch { 
+        return dateString; 
+    }
+};
+
+const formatDateTimeForDisplay = (val) => {
+    if (!val) return '<span class="text-gray-400 dark:text-gray-500">N/D</span>';
+    try { 
+        const date = new Date(val); 
+        if(isNaN(date.getTime())) return esc(val); 
+        return new Intl.DateTimeFormat('it-IT', { dateStyle: 'short', timeStyle: 'short' }).format(date); 
+    } catch { 
+        return esc(val); 
+    }
+};
+
+const formatDateTimeForGoogle = (dateObj) => 
+    dateObj && !isNaN(dateObj.getTime()) ? 
+    dateObj.toISOString().replace(/[\-.:]|\.\d{3}/g,'').substring(0, 15) + 'Z' : '';
+
+function normalizeInizio(val) {
+    if (!val || (val instanceof Date && isNaN(val))) return '';
+    if (val instanceof Date) return val.toISOString().slice(0, 16);
+    let str = String(val).trim();
+    if (!str) return '';
+    if (str.includes('T') && str.length >= 16) return str.slice(0, 16);
+    const d = new Date(str);
+    if (!isNaN(d.getTime())) {
+        const tzoffset = d.getTimezoneOffset() * 60000;
+        return new Date(d.getTime() - tzoffset).toISOString().slice(0, 16);
+    }
+    const matchSlashOrDot = str.match(/^(\d{1,2})[/\.](\d{1,2})[/\.](\d{2,4}),?\s*(\d{1,2}:\d{2})?/);
+    if (matchSlashOrDot) {
+        let [, day, month, year, time] = matchSlashOrDot;
+        year = year.length === 2 ? `20${year}` : year;
+        time = time || '00:00';
+        return `${year}-${month.padStart(2,'0')}-${day.padStart(2,'0')}T${time}`;
+    }
+    return str;
+}
+
+/***** GESTIONE SETUP CLOUD *****/
+function showCloudSetupModal() {
+    dom.apiKeyInput.value = JSONBIN_API_KEY;
+    dom.binIdInput.value = JSONBIN_BIN_ID;
+    dom.cloudSetupModal.classList.add('active');
+}
+
+function hideCloudSetupModal() {
+    dom.cloudSetupModal.classList.remove('active');
+}
+
+function saveCloudConfig() {
+    const apiKey = dom.apiKeyInput.value.trim();
+    const binId = dom.binIdInput.value.trim();
+    
+    if (!apiKey || !binId) {
+        toast('Inserisci sia API Key che BIN ID', 'error');
+        return;
+    }
+    
+    JSONBIN_API_KEY = apiKey;
+    JSONBIN_BIN_ID = binId;
+    
+    localStorage.setItem('jsonbin_api_key', apiKey);
+    localStorage.setItem('jsonbin_bin_id', binId);
+    
+    hideCloudSetupModal();
+    toast('Configurazione cloud salvata!', 'success');
+    updateSyncIndicator('synced', 'Configurato');
+}
+
+/***** RENDERING E UI *****/
+function cardHTML(c) {
+    const na = '<span class="text-gray-400 dark:text-gray-500">N/D</span>';
+    const cardV = v => v ? esc(v) : na;
+    const cardD = v => v ? formatItalianDate(v) : na;
+    const createLink = (protocol, value) => 
+        value ? `<a class="text-indigo-500 hover:underline" href="${protocol}:${esc(value)}" target="_blank" rel="noopener noreferrer">${esc(value)}</a>` : na;
+    const createWebLink = (url) => {
+        if (!url) return na;
+        const normalized = normalizeUrl(url);
+        const displayUrl = normalized.replace(/^https?:\/\//, '');
+        return `<a class="text-indigo-500 hover:underline" href="${esc(normalized)}" target="_blank" rel="noopener noreferrer" title="${esc(normalized)}">${esc(displayUrl)}</a>`;
+    };
+    const fullAddr = [c.INDIRIZZO, c.CITTA, c.CAP].filter(Boolean).map(esc).join(', ');
+
+    return `
+    <div class="client-card panel-bg rounded-2xl border-2 p-6 flex flex-col shadow-xl" data-id="${c.id}">
+        <div class="flex-grow">
+            <div class="flex justify-between items-start mb-5">
+                <h3 class="text-xl font-bold pr-2 break-words">${esc(c.CLIENTE)}</h3>
+                <span class="status-badge ${statusClass(c.ESITO)} flex-shrink-0 ml-2">${esc(c.ESITO) || 'N/D'}</span>
+            </div>
+            <div class="space-y-3 text-sm">
+                <p class="flex justify-between gap-2"><strong class="font-semibold text-gray-600 dark:text-gray-400">Oggetto:</strong><span class="text-right">${cardV(c.OGGETTO)}</span></p>
+                <div class="border-t my-2 border-gray-300 dark:border-gray-700"></div>
+                <p class="flex justify-between gap-2"><strong class="font-semibold text-gray-600 dark:text-gray-400">Appuntamento:</strong><span class="text-right font-bold text-indigo-600 dark:text-indigo-400">${formatDateTimeForDisplay(c.INIZIO)}</span></p>
+                <p class="flex justify-between gap-2"><strong class="font-semibold text-gray-600 dark:text-gray-400">Referente:</strong><span class="text-right">${cardV(c.NOME_REFERENTE)}</span></p>
+                <p class="flex justify-between gap-2"><strong class="font-semibold text-gray-600 dark:text-gray-400">P.IVA:</strong><span class="text-right">${cardV(c['P.IVA'])}</span></p>
+                <div class="border-t my-2 border-gray-300 dark:border-gray-700"></div>
+                <p class="flex justify-between gap-2"><strong class="font-semibold text-gray-600 dark:text-gray-400">Telefono:</strong><span class="text-right">${createLink('tel', c.TELEFONO)}</span></p>
+                <p class="flex justify-between gap-2"><strong class="font-semibold text-gray-600 dark:text-gray-400">Cellulare:</strong><span class="text-right">${createLink('tel', c.CELL)}</span></p>
+                <p class="flex justify-between gap-2"><strong class="font-semibold text-gray-600 dark:text-gray-400">Email:</strong><span class="text-right" style="word-break: break-all;">${createLink('mailto', c.EMAIL)}</span></p>
+                <p class="flex justify-between gap-2"><strong class="font-semibold text-gray-600 dark:text-gray-400">Sito Web:</strong><span class="text-right truncate">${createWebLink(c.SITO)}</span></p>
+                <p class="flex justify-between gap-2"><strong class="font-semibold text-gray-600 dark:text-gray-400">Indirizzo:</strong><span class="text-right">${fullAddr || na}</span></p>
+                 <div class="border-t my-2 border-gray-300 dark:border-gray-700"></div>
+                <div class="space-y-1"><strong class="font-semibold text-gray-600 dark:text-gray-400">Note:</strong><p class="text-xs whitespace-pre-wrap break-words bg-gray-100 dark:bg-gray-800 p-3 rounded-lg mt-2">${c.NOTE ? esc(c.NOTE) : na}</p></div>
+                <div class="border-t my-2 border-gray-300 dark:border-gray-700"></div>
+                 <p class="flex justify-between gap-2"><strong class="font-semibold text-gray-600 dark:text-gray-400">Ult.Modifica:</strong><span class="card-value text-right">${cardD(c.DATA_ULTIMA_MODIFICA)}</span></p>
+            </div>
+        </div>
+        <div class="mt-5 flex flex-wrap justify-end gap-3 border-t pt-5 border-gray-300 dark:border-gray-600">
+            <button class="btn bg-gradient-to-r from-green-400 to-green-500 text-white hover:from-green-500 hover:to-green-600 px-4 py-2" data-act="gcal" title="Aggiungi a Google Calendar">
+                <i class="fas fa-calendar-plus mr-1"></i>GCal
+            </button>
+            <button class="btn bg-gradient-to-r from-indigo-400 to-indigo-500 text-white hover:from-indigo-500 hover:to-indigo-600 px-4 py-2" data-act="edit" title="Modifica cliente">
+                <i class="fas fa-edit mr-1"></i>Modifica
+            </button>
+            <button class="btn bg-gradient-to-r from-red-400 to-red-500 text-white hover:from-red-500 hover:to-red-600 px-4 py-2" data-act="del" title="Elimina cliente">
+                <i class="fas fa-trash mr-1"></i>Elimina
+            </button>
+        </div>
+    </div>`;
+}
+
+function render(list) {
+    if(dom.loader) dom.loader.style.display='none';
+    dom.clientList.innerHTML = list.length ? 
+        list.map(cardHTML).join('') : 
+        `<div class="panel-bg col-span-full text-center p-12 rounded-2xl shadow-xl">
+            <i class="fas fa-users text-6xl text-gray-300 dark:text-gray-600 mb-4"></i>
+            <h3 class="text-2xl font-bold mb-3">Nessun cliente trovato</h3>
+            <p class="text-gray-600 dark:text-gray-400 mb-4">Configura il cloud storage e sincronizza i dati, oppure aggiungi un nuovo cliente.</p>
+            <button class="btn bg-gradient-to-r from-purple-500 to-purple-600 text-white hover:from-purple-600 hover:to-purple-700" onclick="showCloudSetupModal()">
+                <i class="fas fa-cloud-upload-alt mr-2"></i>Configura Cloud
+            </button>
+        </div>`;
+    updateStats();
+}
+
+function updateStats() {
+    const total = clientData.length;
+    dom.total.textContent = total;
+    const todayStr = getTodayString();
+    const appointmentsToday = clientData.filter(c => 
+        c.INIZIO && normalizeInizio(c.INIZIO).startsWith(todayStr)
+    ).length;
+    dom.today.textContent = appointmentsToday;
+    const toFollowUp = clientData.filter(c => 
+        (c.ESITO || '').toUpperCase().includes('RISENTIRE PIÙ AVANTI')
+    ).length;
+    dom.follow.textContent = toFollowUp;
+    const mandatiFirmatiCount = clientData.filter(c => 
+        (c.ESITO || '').toUpperCase().includes('MANDATO FIRMATO')
+    ).length;
+    dom.mandatiFirmati.textContent = mandatiFirmatiCount;
+    const successful = clientData.filter(c => 
+        ['IN DELIBERA', 'MANDATO FIRMATO'].includes(c.ESITO?.toUpperCase())
+    ).length;
+    dom.rate.textContent = `${total > 0 ? ((successful / total) * 100).toFixed(1) : 0}%`;
+}
+
+function showModal(isEdit=false) {
+    dom.modalTitle.textContent = isEdit ? 'Modifica Cliente' : 'Aggiungi Cliente';
+    dom.form.reset();
+    if (isEdit && editingId) {
+        const client = clientData.find(c => c.id === editingId);
+        if (client) {
+            Object.keys(client).forEach(key => {
+                const formKey = key === 'P.IVA' ? 'P_IVA' : key;
+                const input = dom.form.elements[formKey];
+                if (input) {
+                    if(input.type === 'datetime-local') {
+                        input.value = normalizeInizio(client[key]);
+                    } else if (input.type === 'date') {
+                        input.value = client[key] ? client[key].split('T')[0] : '';
+                    } else {
+                        input.value = client[key] || '';
+                    }
+                }
+            });
+        }
+    } else {
+        dom.form.elements.DATA_CREAZIONE.value = getTodayString();
+        dom.form.elements.DATA_ULTIMA_MODIFICA.value = getTodayString();
+    }
+    dom.modal.classList.add('active');
+}
+
+function hideModal() { 
+    dom.modal.classList.remove('active'); 
+    editingId = null; 
+}
+
+function showConfirmDialog({title, message, onConfirm, onCancel = () => {}, okText = 'Conferma', cancelText = 'Annulla'}) {
+    dom.dlgTitle.textContent = title;
+    dom.dlgMsg.textContent = message;
+    dom.dlgOk.innerHTML = `<i class="fas fa-check mr-2"></i>${okText}`;
+    dom.dlgCancel.innerHTML = `<i class="fas fa-times mr-2"></i>${cancelText}`;
+    currentConfirmCallbacks = { onConfirm, onCancel };
+    dom.dlg.classList.add('active');
+}
+
+function hideConfirmDialog() {
+    dom.dlg.classList.remove('active');
+    currentConfirmCallbacks = { onConfirm: () => {}, onCancel: () => {} };
+}
+
+/***** FILTRI E MANIPOLAZIONE DATI *****/
+function applyFilters() {
+    const n = dom.fNome.value.toLowerCase().trim();
+    const c = dom.fCitta.value.toLowerCase().trim();
+    const s = dom.fStato.value.toUpperCase();
+    filteredClients = clientData.filter(x => 
+        (x.CLIENTE || '').toLowerCase().includes(n) &&
+        (x.CITTA || '').toLowerCase().includes(c) &&
+        (!s || (x.ESITO || '').toUpperCase().includes(s))
+    );
+    filteredClients.sort((a, b) => 
+        (new Date(b.DATA_ULTIMA_MODIFICA) || 0) - (new Date(a.DATA_ULTIMA_MODIFICA) || 0)
+    );
+    render(filteredClients);
+}
+
+async function handleFormSubmit(e) {
+    e.preventDefault();
+    const frmD = new FormData(dom.form);
+    const clientObject = {};
+    frmD.forEach((v, k) => { clientObject[k === 'P_IVA' ? 'P.IVA' : k] = v.trim(); });
+    clientObject.ESITO = (clientObject.ESITO || 'NUOVO CLIENTE').toUpperCase();
+    clientObject.DATA_ULTIMA_MODIFICA = getTodayString();
+    clientObject.INIZIO = normalizeInizio(clientObject.INIZIO);
+    clientObject.SITO = normalizeUrl(clientObject.SITO);
+
+    if (editingId) {
+        const index = clientData.findIndex(c => c.id === editingId);
+        if (index !== -1) {
+            clientObject.id = editingId;
+            clientObject.DATA_CREAZIONE = clientData[index].DATA_CREAZIONE;
+            clientData[index] = clientObject;
+            toast('Cliente aggiornato localmente', 'success');
+        }
+    } else {
+        clientObject.id = genId();
+        clientObject.DATA_CREAZIONE = getTodayString();
+        clientData.unshift(clientObject);
+        toast('Cliente aggiunto localmente', 'success');
+    }
+    
+    applyFilters();
+    hideModal();
+    await saveDataToCloud();
+}
+
+async function handleDelete(id) {
+    showConfirmDialog({
+        title:'Conferma Eliminazione', 
+        message:'Vuoi davvero eliminare questo cliente?',
+        onConfirm: async () => { 
+            clientData = clientData.filter(c => c.id !== id);
+            applyFilters();
+            toast('Cliente eliminato localmente', 'success');
+            await saveDataToCloud();
+        }
+    });
+}
+
+async function handleClearAllData() {
+    showConfirmDialog({
+        title:'Azzerare Tutti i Dati?', 
+        message:'ATTENZIONE: Questa azione cancellerà tutti i clienti dal cloud. Sei sicuro?',
+        onConfirm: async () => { 
+            clientData = [];
+            applyFilters();
+            toast('Dati cancellati localmente', 'warning');
+            await saveDataToCloud();
+        }
+    });
+}
+
+/***** GESTIONE CLOUD (JSONBin.io) *****/
+function isConfigured() {
+    return JSONBIN_API_KEY && JSONBIN_BIN_ID;
+}
+
+async function loadDataFromCloud() {
+    if (!isConfigured()) {
+        toast('Configura prima le credenziali cloud', 'warning');
+        showCloudSetupModal();
+        return;
+    }
+    
+    updateSyncIndicator('syncing', 'Caricando...');
+    dom.loader.style.display = 'block';
+
+    try {
+        const response = await fetch(`https://api.jsonbin.io/v3/b/${JSONBIN_BIN_ID}/latest`, {
+            method: 'GET',
+            headers: { 'X-Master-Key': JSONBIN_API_KEY }
+        });
+
+        if (!response.ok) {
+            if (response.status === 404) {
+                clientData = [];
+                applyFilters();
+                toast('Cloud vuoto. Pronto per salvare nuovi dati.', 'success');
+                updateSyncIndicator('synced', 'Cloud Vuoto');
+                return;
+            }
+            throw new Error(`Errore HTTP: ${response.status}`);
+        }
+
+        const data = await response.json();
+        clientData = Array.isArray(data.record) ? data.record : [];
+        applyFilters();
+        toast('Dati sincronizzati dal cloud!', 'success');
+        updateSyncIndicator('synced', 'Sincronizzato');
+
+    } catch (error) {
+        console.error("Errore caricamento dati:", error);
+        toast('Errore nel caricamento dei dati dal cloud.', 'error');
+        updateSyncIndicator('error', 'Errore Sync');
+    } finally {
+        dom.loader.style.display = 'none';
+    }
+}
+
+async function saveDataToCloud() {
+    if (!isConfigured()) {
+        toast('Cloud non configurato. Dati non salvati.', 'warning');
+        return;
+    }
+    
+    updateSyncIndicator('syncing', 'Salvataggio...');
+
+    try {
+        const response = await fetch(`https://api.jsonbin.io/v3/b/${JSONBIN_BIN_ID}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Master-Key': JSONBIN_API_KEY
+            },
+            body: JSON.stringify(clientData)
+        });
+
+        if (!response.ok) {
+            throw new Error(`Errore HTTP: ${response.status}`);
+        }
+        
+        toast('Dati salvati nel cloud!', 'success');
+        updateSyncIndicator('synced', 'Salvato');
+
+    } catch (error) {
+        console.error("Errore salvataggio dati:", error);
+        toast('Errore nel salvataggio dei dati nel cloud.', 'error');
+        updateSyncIndicator('error', 'Errore Salva');
+    }
+}
+
+/***** IMPORT/EXPORT *****/
+function handleFile(e) {
+    const f = e.target.files[0]; 
+    if (!f) return;
+    
+    updateSyncIndicator('syncing', 'Importando file...');
+    const ext = f.name.split('.').pop().toLowerCase();
+    const reader = new FileReader();
+    
+    reader.onloadstart = () => dom.loader.style.display = 'block';
+    reader.onerror = () => {
+        dom.loader.style.display = 'none';
+        toast('Errore lettura file.', 'error');
+        updateSyncIndicator('error', 'Errore lettura file');
+    };
+    
+    reader.onload = (event) => {
+        try {
+            const fileContent = event.target.result;
+            let data;
+            
+            if (['xlsx', 'xls'].includes(ext)) {
+                const workbook = XLSX.read(fileContent, { type: 'array', cellDates: true });
+                data = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+            } else if (ext === 'csv') {
+                const result = Papa.parse(fileContent, { header: true, skipEmptyLines: true });
+                if (result.errors.length > 0) throw new Error(result.errors[0].message);
+                data = result.data;
+            } else if (ext === 'json') {
+                data = JSON.parse(fileContent);
+                if (data.data && Array.isArray(data.data)) {
+                    data = data.data;
+                }
+            } else {
+                throw new Error('Formato non supportato: ' + ext);
+            }
+            
+            processImportedData(data);
+        } catch (err) {
+            toast(`Errore nell'elaborazione: ${err.message}`, 'error');
+            updateSyncIndicator('error', 'Errore importazione');
+        } finally {
+            dom.loader.style.display = 'none';
+            e.target.value = '';
+        }
+    };
+
+    if (['xlsx', 'xls'].includes(ext)) {
+        reader.readAsArrayBuffer(f);
+    } else {
+        reader.readAsText(f, 'UTF-8');
+    }
+}
+
+function rowToClient(row) {
+    const pick = (obj, keys) => {
+        const normalize = str => String(str||'').toLowerCase().replace(/[^a-z0-9]/gi, '');
+        for (const k of keys) {
+            const foundKey = Object.keys(obj).find(rk => normalize(rk) === normalize(k));
+            if (foundKey && obj[foundKey] != null) return String(obj[foundKey]).trim();
+        } 
+        return '';
+    };
+    
+    const ragioneSociale = pick(row, ['CLIENTE', 'Ragione Sociale']);
+    if (!ragioneSociale) return null;
+
+    return {
+        id: pick(row, ['id']) || genId(),
+        OGGETTO: pick(row, ['OGGETTO']),
+        CLIENTE: ragioneSociale,
+        'P.IVA': pick(row, ['P.IVA', 'P IVA']),
+        NOME_REFERENTE: pick(row, ['NOME_REFERENTE', 'NOME REFERENTE']),
+        ESITO: pick(row, ['ESITO']).toUpperCase()||'NUOVO CLIENTE',
+        CHIUSO_NEGATIVO: pick(row,['CHIUSO_NEGATIVO', 'CHIUSO NEGATIVO']),
+        INIZIO: normalizeInizio(pick(row, ['INIZIO', 'Data Appuntamento'])),
+        CAMPAGNA_RIFERIMENTO: pick(row,['CAMPAGNA_RIFERIMENTO', 'CAMPAGNA RIFERIMENTO']),
+        INDIRIZZO: pick(row, ['INDIRIZZO']),
+        CITTA: pick(row, ['CITTA', 'Città']),
+        CAP: pick(row, ['CAP']),
+        TELEFONO: pick(row, ['TELEFONO']),
+        CELL: pick(row, ['CELL', 'Cellulare', 'Mobile']),
+        EMAIL: pick(row, ['EMAIL']),
+        SITO: normalizeUrl(pick(row, ['SITO', 'Website', 'URL'])),
+        NOTE: pick(row, ['NOTE']),
+        DATA_CREAZIONE: pick(row, ['DATA_CREAZIONE', 'DATA CREAZIONE']) || getTodayString(),
+        DATA_ULTIMA_MODIFICA: pick(row, ['DATA_ULTIMA_MODIFICA', 'DATA ULTIMA MODIFICA']) || getTodayString(),
+    };
+}
+
+function processImportedData(data) {
+    if(!Array.isArray(data) || data.length === 0) {
+        toast('Nessun dato valido da importare.', 'warning');
+        return;
+    }
+    
+    const newClients = data.map(rowToClient).filter(Boolean);
+    if(newClients.length === 0) {
+        toast('Nessun cliente valido trovato nel file.', 'warning');
+        return;
+    }
+    
+    showConfirmDialog({
+        title:'Conferma Importazione',
+        message:`Trovati ${newClients.length} clienti. Vuoi SOSTITUIRE i dati attuali con questi?`,
+        onConfirm: async () => {
+            clientData = newClients;
+            applyFilters();
+            toast(`${newClients.length} clienti importati. Salva nel cloud per confermare.`, 'success');
+            await saveDataToCloud();
+        },
+        okText: 'Sostituisci',
+    });
+}
+
+function exportToJSON() { 
+    if(!clientData.length) {
+        toast('Nessun dato da esportare.', 'warning');
+        return;
+    }
+    
+    const blob = new Blob([JSON.stringify(clientData, null, 2)], {type: 'application/json'}); 
+    const url = URL.createObjectURL(blob); 
+    const a = document.createElement('a'); 
+    a.href = url; 
+    a.download = `backup_clienti_${getTodayString()}.json`; 
+    document.body.appendChild(a); 
+    a.click(); 
+    document.body.removeChild(a); 
+    URL.revokeObjectURL(url); 
+    toast('Backup JSON creato.', 'success');
+}
+
+/***** GESTIONE EVENTI *****/
+function handleCardClick(e) {
+    const actionElement = e.target.closest('[data-act]');
+    if (!actionElement || e.target.closest('a')) return;
+    e.stopPropagation();
+    const id = actionElement.closest('.client-card').dataset.id;
+    editingId = id; 
+    const action = actionElement.dataset.act;
+    if(action==='edit') showModal(true);
+    else if(action==='del') handleDelete(id);
+    else if(action==='gcal') handleGCalClick(id);
+}
+
+function handleGCalClick(id) {
+    const client = clientData.find(c => c.id === id); 
+    if (!client || !client.INIZIO) {
+        toast('Appuntamento non impostato.', 'warning');
+        return;
+    }
+    
+    const startDate = new Date(normalizeInizio(client.INIZIO)); 
+    if(isNaN(startDate)) {
+        toast('Data appuntamento non valida.', 'error');
+        return;
+    }
+    
+    const endDate = new Date(startDate.getTime() + 36e5);
+    const url = new URL('https://calendar.google.com/calendar/render');
+    url.searchParams.set('action', 'TEMPLATE');
+    url.searchParams.set('text', `Appuntamento: ${client.CLIENTE}`);
+    url.searchParams.set('dates', `${formatDateTimeForGoogle(startDate)}/${formatDateTimeForGoogle(endDate)}`);
+    url.searchParams.set('details', `Oggetto: ${client.OGGETTO||''}\nReferente: ${client.NOME_REFERENTE||''}\nTel: ${client.TELEFONO||''}\nCell: ${client.CELL||''}\nNote: ${client.NOTE||''}`);
+    url.searchParams.set('location', `${client.INDIRIZZO||''}, ${client.CITTA||''}`.trim());
+    window.open(url.toString(),'_blank');
+}
+
+function setupThemeAndBackground() {
+    const savedTheme = localStorage.getItem(THEME_KEY); 
+    const html = document.documentElement; 
+    
+    const applyTheme = (theme) => { 
+        if(theme === 'dark') { 
+            html.classList.add('dark'); 
+        } else { 
+            html.classList.remove('dark'); 
+        } 
+    };
+    
+    applyTheme(savedTheme || (window.matchMedia('(prefers-color-scheme:dark)').matches ? 'dark' : 'light'));
+    
+    dom.themeToggle.addEventListener('click',()=>{ 
+        const newTheme = html.classList.contains('dark') ? 'light' : 'dark'; 
+        applyTheme(newTheme); 
+        localStorage.setItem(THEME_KEY, newTheme); 
+    });
+    
+    const savedBg = localStorage.getItem(BG_KEY);
+    if(savedBg) document.body.style.backgroundImage = `url(${savedBg})`;
+    
+    dom.bgInput.addEventListener('change', e => {
+        const f = e.target.files[0];
+        if(f && f.type.startsWith('image/')) {
+            const r = new FileReader();
+            r.onload = ev => {
+                try {
+                    localStorage.setItem(BG_KEY, ev.target.result);
+                    document.body.style.backgroundImage = `url(${ev.target.result})`;
+                    toast('Sfondo aggiornato!', 'success');
+                } catch(err) {
+                    toast('Immagine troppo grande per essere salvata.', 'error')
+                }
+            };
+            r.readAsDataURL(f);
+        }
+    });
+    
+    dom.btnResetBg.addEventListener('click', () => {
+        localStorage.removeItem(BG_KEY);
+        document.body.style.backgroundImage = '';
+        toast('Sfondo ripristinato', 'success');
+    });
+}
+
+/***** INIZIALIZZAZIONE *****/
+function setupEventListeners() {
+    dom.btnAdd.addEventListener('click', () => showModal(false));
+    dom.form.addEventListener('submit', handleFormSubmit);
+    dom.modal.addEventListener('click', e => e.target === dom.modal && hideModal());
+    dom.btnModalCancel.addEventListener('click', hideModal);
+    
+    [dom.fNome, dom.fCitta, dom.fStato].forEach(el => 
+        el.addEventListener('input', applyFilters)
+    );
+    dom.btnFiltra.addEventListener('click', applyFilters);
+    
+    dom.clientList.addEventListener('click', handleCardClick);
+    dom.btnClear.addEventListener('click', handleClearAllData);
+    
+    dom.file.addEventListener('change', handleFile);
+    dom.btnJSON.addEventListener('click', exportToJSON);
+    
+    dom.syncButton.addEventListener('click', loadDataFromCloud);
+    dom.setupCloudButton.addEventListener('click', showCloudSetupModal);
+    
+    dom.cloudSetupSave.addEventListener('click', saveCloudConfig);
+    dom.cloudSetupCancel.addEventListener('click', hideCloudSetupModal);
+    dom.cloudSetupModal.addEventListener('click', e => e.target === dom.cloudSetupModal && hideCloudSetupModal());
+
+    dom.dlgActions.addEventListener('click', (e) => {
+        const targetId = e.target.closest('button')?.id;
+        if (targetId === 'confirmOk') {
+            if (currentConfirmCallbacks.onConfirm) currentConfirmCallbacks.onConfirm();
+            hideConfirmDialog();
+        } else if (targetId === 'confirmCancel') {
+            if (currentConfirmCallbacks.onCancel) currentConfirmCallbacks.onCancel();
+            hideConfirmDialog();
+        }
+    });
+    
+    dom.dlg.addEventListener('click', (e) => {
+        if (e.target === dom.dlg) hideConfirmDialog();
+    });
+}
+
+async function init() {
+    setupThemeAndBackground(); 
+    setupEventListeners();
+    
+    if (!isConfigured()) {
+        updateSyncIndicator('error', 'Da Configurare');
+        applyFilters();
+        return; 
+    }
+    
+    await loadDataFromCloud();
+}
+
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>
