@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="it" class="dark">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Dashboard Clienti</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Excel & CSV parsing -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <!-- PDF export & import -->
+    <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.1/jspdf.plugin.autotable.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+    <script>
+        if (typeof pdfjsLib !== 'undefined') {
+            pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+        :root { --bg-light: #f0f9ff; --text-light: #0c4a6e; --bg-dark: #0a0a0a; --text-dark: #e5e7eb; }
+        body { font-family: 'Inter', sans-serif; background-color: var(--bg-light); color: var(--text-light); transition: all 0.3s ease; background-size: cover; background-position: center; background-attachment: fixed; }
+        html.dark body { background-color: var(--bg-dark); color: var(--text-dark); }
+        
+        .panel-bg { 
+            background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(20px) saturate(180%); -webkit-backdrop-filter: blur(20px) saturate(180%); 
+            border: 1px solid rgba(255, 255, 255, 0.3); box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.15);
+        }
+        html.dark .panel-bg { 
+            background: rgba(30, 30, 30, 0.7); border: 1px solid rgba(255, 255, 255, 0.15); box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+        }
+        
+        .form-input, textarea.form-input { 
+            width: 100%; padding: 0.75rem 1rem; border: 2px solid transparent; border-radius: 0.5rem; 
+            background: rgba(255, 255, 255, 0.9); transition: all 0.3s ease; font-size: 0.95rem;
+        }
+        html.dark .form-input, html.dark textarea.form-input { 
+            background: rgba(55, 65, 81, 0.5); color: #f3f4f6; 
+        }
+        .form-input:focus, textarea.form-input:focus { 
+            outline: none; border-color: #6366f1; box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1); transform: translateY(-1px);
+        }
+        
+        .form-label { display: block; font-size: 0.875rem; font-weight: 600; margin-bottom: 0.5rem; color: #374151; letter-spacing: 0.025em; }
+        html.dark .form-label { color: #d1d5db; }
+        
+        .client-card { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); border-color: transparent; }
+        .client-card:hover { transform: translateY(-6px) scale(1.02); box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04); border-color: rgba(99, 102, 241, 0.3); }
+        html.dark .client-card:hover { box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3), 0 10px 10px -5px rgba(0, 0, 0, 0.2); }
+        
+        .status-badge { 
+            padding: 0.4em 1em; border-radius: 9999px; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; 
+            white-space: nowrap; letter-spacing: 0.05em; background: linear-gradient(135deg, var(--badge-bg-1) 0%, var(--badge-bg-2) 100%);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        .status-in-delibera { --badge-bg-1: #6ee7b7; --badge-bg-2: #34d399; color: #065f46; }
+        .status-non-interessato { --badge-bg-1: #fca5a5; --badge-bg-2: #f87171; color: #7f1d1d; }
+        .status-inviato-documenti { --badge-bg-1: #fde047; --badge-bg-2: #facc15; color: #713f12; }
+        .status-risentire-piu-avanti { --badge-bg-1: #7dd3fc; --badge-bg-2: #38bdf8; color: #075985; }
+        .status-fissato { --badge-bg-1: #86efac; --badge-bg-2: #4ade80; color: #14532d; }
+        .status-non-risponde { --badge-bg-1: #fecaca; --badge-bg-2: #fca5a5; color: #7f1d1d; }
+        .status-annullato { --badge-bg-1: #e5e7eb; --badge-bg-2: #d1d5db; color: #374151; }
+        .status-altro { --badge-bg-1: #e0e7ff; --badge-bg-2: #c7d2fe; color: #312e81; }
+        .status-nuovo-cliente { --badge-bg-1: #ddd6fe; --badge-bg-2: #c4b5fd; color: #5b21b6; }
+        .status-mandato-firmato { --badge-bg-1: #86efac; --badge-bg-2: #34d399; color: #064e3b; font-weight: 800; }
+
+        .toast {
+            position: fixed; bottom: 30px; right: 30px; padding: 1rem 1.5rem; color: #fff; border-radius: 12px;
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2); z-index: 2000;
+            animation: slideIn .4s ease-out, fadeOut .3s ease-in 3.7s forwards; font-weight: 500;
+        }
+        @keyframes slideIn { from { transform: translateX(120%); } to { transform: translateX(0); } }
+        @keyframes fadeOut { from { opacity: 1; } to { opacity: 0; } }
+        .toast.success { background: linear-gradient(135deg, #10b981 0%, #059669 100%); }
+        .toast.error { background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); }
+        .toast.warning { background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); }
+        
+        .modal-backdrop {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(0, 0, 0, 0.7); backdrop-filter: blur(8px);
+            display: flex; align-items: center; justify-content: center; opacity: 0; visibility: hidden; transition: all 0.3s ease; z-index: 1000;
+        }
+        .modal-backdrop.active { opacity: 1; visibility: visible; }
+        .modal-content {
+            background: white; padding: 2.5rem; border-radius: 1rem; width: 90%; max-width: 700px; transform: scale(0.9) translateY(20px);
+            transition: all 0.3s ease; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+        }
+        html.dark .modal-content { background: #1f2937; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); }
+        .modal-backdrop.active .modal-content { transform: scale(1) translateY(0); }
+        
+        #loader {
+            border: 4px solid rgba(243, 244, 246, 0.3); border-top: 4px solid #6366f1; border-radius: 50%;
+            width: 60px; height: 60px; animation: spin 0.8s linear infinite; position: fixed;
+            top: 50%; left: 50%; margin-top: -30px; margin-left: -30px; z-index: 3000; box-shadow: 0 0 20px rgba(99, 102, 241, 0.3);
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        
+        .btn { padding: 0.5rem 1rem; border-radius: 0.5rem; font-weight: 600; transition: all 0.3s ease; text-transform: uppercase; letter-spacing: 0.025em; font-size: 0.875rem; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
+        .btn:hover { transform: translateY(-2px); box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); }
+        
+        .stat-card { position: relative; overflow: hidden; }
+        .stat-card::before { content: ''; position: absolute; top: 0; left: -100%; width: 100%; height: 100%; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent); transition: left 0.5s; }
+        .stat-card:hover::before { left: 100%; }
+        
+        ::-webkit-scrollbar { width: 10px; height: 10px; }
+        ::-webkit-scrollbar-track { background: rgba(0, 0, 0, 0.1); border-radius: 10px; }
+        ::-webkit-scrollbar-thumb { background: rgba(99, 102, 241, 0.5); border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(99, 102, 241, 0.7); }
+
+    </style>
+</head>
+<body>
+    <div class="min-h-screen p-4 sm:p-6 lg:p-8">
+        <main class="max-w-7xl mx-auto">
+            <!-- Header e Controlli -->
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8">
+                <div class="panel-bg p-6 rounded-2xl shadow-xl">
+                    <h1 class="text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-500 to-purple-600">Dashboard Clienti</h1>
+                    <p class="text-gray-600 dark:text-gray-400 mt-2">Gestisci e visualizza i tuoi contatti con facilità.</p>
+                </div>
+                <div class="flex items-center flex-wrap justify-center gap-3 mt-6 sm:mt-0 panel-bg p-4 rounded-2xl shadow-xl">
+                    <a href="https://bfspartner22.my.site.com/s/login/?ec=302&startURL=%2Fs%2F%3Ftabset-eb989%3Dtab2" target="_blank" class="btn bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-blue-700">BFS PARTNER</a>
+                    <a href="https://ambico.3connect.it/" target="_blank" class="btn bg-gradient-to-r from-green-500 to-green-600 text-white hover:from-green-600 hover:to-green-700">AMBICO</a>
+                    <a href="https://music.youtube.com/" target="_blank" class="btn bg-gradient-to-r from-red-500 to-red-600 text-white hover:from-red-600 hover:to-red-700">FOCUS FLOW</a>
+                    <a href="https://www.perplexity.ai/?login-source=floatingSignup" target="_blank" class="btn bg-gradient-to-r from-gray-700 to-gray-900 text-white hover:from-gray-800 hover:to-black">PERPLEXITY</a>
+                    <a href="https://chatgpt.com/" target="_blank" class="btn bg-gradient-to-r from-teal-500 to-teal-600 text-white hover:from-teal-600 hover:to-teal-700">GPT</a>
+                    <a href="https://gemini.google.com/app" target="_blank" class="btn bg-gradient-to-r from-blue-400 to-blue-500 text-white hover:from-blue-500 hover:to-blue-600">GEMINI</a>
+                    <a href="https://aistudio.google.com/u/0/prompts/new_chat" target="_blank" class="btn bg-gradient-to-r from-yellow-400 to-yellow-500 text-white hover:from-yellow-500 hover:to-yellow-600">AI STUDIO</a>
+                    <a href="https://www.canva.com/" target="_blank" class="btn bg-gradient-to-r from-purple-500 to-purple-600 text-white hover:from-purple-600 hover:to-purple-700">CANVA</a>
+                    <div class="w-full border-t border-gray-300 dark:border-gray-600 my-3"></div>
+                    <button id="resetBackgroundButton" class="text-sm px-3 py-1 text-gray-600 dark:text-gray-300 hover:text-red-500 transition-colors">Reset Sfondo</button>
+                    <label for="backgroundInput" class="cursor-pointer text-sm px-3 py-1 text-gray-600 dark:text-gray-300 hover:text-indigo-500">Cambia Sfondo</label>
+                    <input type="file" id="backgroundInput" class="hidden" accept="image/*">
+                    <div class="flex items-center gap-3">
+                        <span class="text-sm font-medium">Light</span>
+                        <button id="theme-toggle" class="relative inline-flex items-center h-6 rounded-full w-12 transition-colors bg-gray-300 dark:bg-indigo-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                            <span class="sr-only">Toggle theme</span>
+                            <span class="inline-block w-5 h-5 transform bg-white rounded-full transition-transform translate-x-0.5 dark:translate-x-6 shadow-md"></span>
+                        </button>
+                        <span class="text-sm font-medium">Dark</span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Statistiche -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
+                <div class="stat-card panel-bg p-6 rounded-2xl shadow-xl">
+                    <h4 class="text-sm font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">Clienti Totali</h4>
+                    <p id="totalClients" class="text-4xl font-bold mt-2 bg-clip-text text-transparent bg-gradient-to-r from-blue-500 to-indigo-600">0</p>
+                </div>
+                <div class="stat-card panel-bg p-6 rounded-2xl shadow-xl">
+                    <h4 class="text-sm font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">Appuntamenti Oggi</h4>
+                    <p id="appointmentsToday" class="text-4xl font-bold mt-2 bg-clip-text text-transparent bg-gradient-to-r from-green-500 to-teal-600">0</p>
+                </div>
+                <div class="stat-card panel-bg p-6 rounded-2xl shadow-xl">
+                    <h4 class="text-sm font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">Risentire più avanti</h4>
+                    <p id="toFollowUp" class="text-4xl font-bold mt-2 bg-clip-text text-transparent bg-gradient-to-r from-yellow-500 to-orange-600">0</p>
+                </div>
+                <div class="stat-card panel-bg p-6 rounded-2xl shadow-xl">
+                    <h4 class="text-sm font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">Mandati Firmati</h4>
+                    <p id="mandatiFirmati" class="text-4xl font-bold mt-2 bg-clip-text text-transparent bg-gradient-to-r from-purple-500 to-pink-600">0</p>
+                </div>
+                <div class="stat-card panel-bg p-6 rounded-2xl shadow-xl">
+                    <h4 class="text-sm font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider">Tasso Successo</h4>
+                    <p id="successRate" class="text-4xl font-bold mt-2 bg-clip-text text-transparent bg-gradient-to-r from-indigo-500 to-purple-600">0%</p>
+                </div>
+            </div>
+            
+            <!-- Filtri e Azioni -->
+            <div class="panel-bg p-6 rounded-2xl shadow-xl mb-8 space-y-6">
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <input type="text" id="filterCliente" placeholder="Filtra per nome cliente..." class="form-input">
+                    <input type="text" id="filterCitta" placeholder="Filtra per città..." class="form-input">
+                    <select id="filterStato" class="form-input">
+                        <option value="">Tutti gli stati</option>
+                        <option value="NUOVO CLIENTE">Nuovo Cliente</option>
+                        <option value="FISSATO">Fissato</option>
+                        <option value="NON RISPONDE">Non Risponde</option>
+                        <option value="RISENTIRE PIÙ AVANTI">Risentire più avanti</option>
+                        <option value="NON INTERESSATO">Non Interessato</option>
+                        <option value="ANNULLATO">Annullato</option>
+                        <option value="IN DELIBERA">In Delibera</option>
+                        <option value="INVIATO DOCUMENTI">Inviato Documenti</option>
+                        <option value="MANDATO FIRMATO">Mandato Firmato</option>
+                        <option value="ALTRO">Altro</option>
+                    </select>
+                    <button id="applyFilters" class="btn bg-gradient-to-r from-indigo-500 to-purple-600 text-white hover:from-indigo-600 hover:to-purple-700">Applica Filtri</button>
+                </div>
+                <div class="border-t border-gray-300 dark:border-gray-700 pt-6 flex flex-wrap gap-3 items-center">
+                    <button id="addClientButton" class="btn bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:from-green-600 hover:to-emerald-700">Aggiungi Cliente</button>
+                    <button id="clearDataButton" class="btn bg-gradient-to-r from-red-500 to-red-600 text-white hover:from-red-600 hover:to-red-700">Azzera Dati</button>
+                    <div class="flex gap-3 flex-wrap flex-grow sm:flex-grow-0 sm:ml-auto">
+                        <label for="fileInput" class="cursor-pointer btn bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-blue-700">Importa Dati</label>
+                        <input type="file" id="fileInput" class="hidden" accept=".xlsx,.xls,.csv,.json,.pdf">
+                        <button id="exportJsonButton" class="btn bg-gradient-to-r from-orange-500 to-orange-600 text-white hover:from-orange-600 hover:to-orange-700">Salva Backup (JSON)</button>
+                        <label for="jsonBackupInput" class="cursor-pointer btn bg-gradient-to-r from-purple-500 to-purple-600 text-white hover:from-purple-600 hover:to-purple-700">Carica Backup (JSON)</label>
+                        <input type="file" id="jsonBackupInput" class="hidden" accept=".json">
+                        <button id="exportCsvButton" class="btn bg-gray-300 dark:bg-gray-700 text-gray-800 dark:text-gray-200 hover:bg-gray-400 dark:hover:bg-gray-600">Esporta CSV</button>
+                        <button id="exportPdfButton" class="btn bg-gray-300 dark:bg-gray-700 text-gray-800 dark:text-gray-200 hover:bg-gray-400 dark:hover:bg-gray-600">Esporta PDF</button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Lista Clienti e Loader -->
+            <div id="loader" style="display:none;"></div>
+            <div id="clientList" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+        </main>
+    </div>
+
+    <!-- Modale Cliente -->
+    <div id="clientModal" class="modal-backdrop">
+        <div class="modal-content">
+            <h2 id="modalTitle" class="text-3xl font-bold mb-8 bg-clip-text text-transparent bg-gradient-to-r from-indigo-500 to-purple-600"></h2>
+            <form id="clientForm">
+                <div class="modal-body grid grid-cols-1 md:grid-cols-2 gap-5" style="max-height: 70vh; overflow-y: auto; padding-right: 1rem;">
+                    <div class="col-span-full"><label for="OGGETTO" class="form-label">Oggetto</label><input type="text" name="OGGETTO" class="form-input"></div>
+                    <div><label for="CLIENTE" class="form-label">Ragione Sociale *</label><input type="text" name="CLIENTE" class="form-input" required></div>
+                    <div><label for="P_IVA" class="form-label">P.IVA</label><input type="text" name="P_IVA" class="form-input"></div>
+                    <div><label for="INIZIO" class="form-label">Data/Ora Appuntamento</label><input type="datetime-local" name="INIZIO" class="form-input"></div>
+                    <div><label for="NOME_REFERENTE" class="form-label">Nome Referente</label><input type="text" name="NOME_REFERENTE" class="form-input"></div>
+                    <div><label for="ESITO" class="form-label">Esito</label>
+                        <select name="ESITO" class="form-input">
+                            <option value="NUOVO CLIENTE">Nuovo Cliente</option>
+                            <option value="FISSATO">Fissato</option>
+                            <option value="NON RISPONDE">Non Risponde</option>
+                            <option value="RISENTIRE PIÙ AVANTI">Risentire più avanti</option>
+                            <option value="NON INTERESSATO">Non Interessato</option>
+                            <option value="ANNULLATO">Annullato</option>
+                            <option value="IN DELIBERA">In Delibera</option>
+                            <option value="INVIATO DOCUMENTI">Inviato Documenti</option>
+                            <option value="MANDATO FIRMATO">Mandato Firmato</option>
+                            <option value="ALTRO">Altro</option>
+                        </select>
+                    </div>
+                    <div><label for="CHIUSO_NEGATIVO" class="form-label">Chiuso Negativo</label><input type="text" name="CHIUSO_NEGATIVO" class="form-input"></div>
+                    <div><label for="CAMPAGNA_RIFERIMENTO" class="form-label">Campagna di Riferimento</label><input type="text" name="CAMPAGNA_RIFERIMENTO" class="form-input"></div>
+                    <div class="col-span-full"><label for="INDIRIZZO" class="form-label">Indirizzo</label><input type="text" name="INDIRIZZO" class="form-input"></div>
+                    <div><label for="CITTA" class="form-label">Città</label><input type="text" name="CITTA" class="form-input"></div>
+                    <div><label for="CAP" class="form-label">CAP</label><input type="text" name="CAP" class="form-input"></div>
+                    
+                    <!-- Campi Aggiunti: Telefono, Cellulare, Email, Sito -->
+                    <div><label for="TELEFONO" class="form-label">Telefono</label><input type="tel" name="TELEFONO" class="form-input"></div>
+                    <div><label for="CELL" class="form-label">Cellulare</label><input type="tel" name="CELL" class="form-input"></div>
+                    <div class="col-span-full"><label for="EMAIL" class="form-label">Email</label><input type="email" name="EMAIL" class="form-input"></div>
+                    <div class="col-span-full"><label for="SITO" class="form-label">Sito Web</label><input type="url" name="SITO" class="form-input" placeholder="https://esempio.com"></div>
+
+                    <!-- Campi Data e Note -->
+                    <div><label for="DATA_CREAZIONE" class="form-label">Data Creazione</label><input type="date" name="DATA_CREAZIONE" class="form-input" readonly></div>
+                    <div><label for="DATA_ULTIMA_MODIFICA" class="form-label">Data Ultima Modifica</label><input type="date" name="DATA_ULTIMA_MODIFICA" class="form-input" readonly></div>
+                    <div class="col-span-full"><label for="NOTE" class="form-label">Note</label><textarea name="NOTE" class="form-input" rows="4" style="resize: vertical;"></textarea></div>
+                </div>
+                <div class="mt-8 flex flex-wrap justify-end gap-4">
+                    <button type="button" id="modalCancel" class="btn bg-gray-300 dark:bg-gray-700 text-gray-800 dark:text-gray-200 hover:bg-gray-400 dark:hover:bg-gray-600">Annulla</button>
+                    <button type="submit" class="btn bg-gradient-to-r from-indigo-500 to-purple-600 text-white hover:from-indigo-600 hover:to-purple-700">Salva Cliente</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Dialogo di Conferma -->
+    <div id="confirmDialog" class="modal-backdrop">
+        <div class="modal-content max-w-md">
+            <h2 id="confirmTitle" class="text-2xl font-bold mb-6"></h2>
+            <p id="confirmMessage" class="text-gray-600 dark:text-gray-300 mb-8"></p>
+            <div class="flex justify-end gap-4">
+                <button id="confirmCancel" class="btn bg-gray-300 dark:bg-gray-700 text-gray-800 dark:text-gray-200 hover:bg-gray-400 dark:hover:bg-gray-600">Annulla</button>
+                <button id="confirmOk" class="btn bg-gradient-to-r from-red-500 to-red-600 text-white hover:from-red-600 hover:to-red-700">Conferma</button>
+            </div>
+        </div>
+    </div>
+
+<script>
+/***** STATO GLOBALE *****/
+const STORAGE_KEY = 'gestionaleClienti_data_v24'; // Versione aggiornata
+const THEME_KEY = 'gestionaleClienti_theme_v24';
+const BG_KEY = 'gestionaleClienti_background_v24';
+let clientData = [];
+let filteredClients = [];
+let editingId = null;
+
+/***** CACHE DEGLI ELEMENTI DOM *****/
+const $ = (id) => document.getElementById(id);
+const dom = {
+    clientList: $('clientList'), loader: $('loader'),
+    fNome: $('filterCliente'), fCitta: $('filterCitta'), fStato: $('filterStato'),
+    btnFiltra: $('applyFilters'),
+    file: $('fileInput'), jsonBackupInput: $('jsonBackupInput'),
+    btnCSV: $('exportCsvButton'), btnPDF: $('exportPdfButton'), btnJSON: $('exportJsonButton'),
+    btnClear: $('clearDataButton'),
+    total: $('totalClients'), today: $('appointmentsToday'), follow: $('toFollowUp'),
+    rate: $('successRate'), mandatiFirmati: $('mandatiFirmati'),
+    modal: $('clientModal'), modalTitle: $('modalTitle'), btnAdd: $('addClientButton'),
+    form: $('clientForm'), btnModalCancel: $('modalCancel'),
+    dlg: $('confirmDialog'), dlgTitle: $('confirmTitle'), dlgMsg: $('confirmMessage'),
+    dlgOk: $('confirmOk'), dlgCancel: $('confirmCancel'),
+    themeToggle: $('theme-toggle'),
+    bgInput: $('backgroundInput'),
+    btnResetBg: $('resetBackgroundButton'),
+};
+
+/***** FUNZIONI DI UTILITÀ *****/
+const toast = (m, t = 'success') => { const el=document.createElement('div'); el.className=`toast ${t}`; el.textContent=m; document.body.append(el); setTimeout(()=>el.remove(),4000);};
+const save = () => { try{localStorage.setItem(STORAGE_KEY,JSON.stringify(clientData));}catch(e){console.error("Salvataggio fallito:",e);toast('Errore salvataggio','error');}};
+const load = () => { try{clientData=JSON.parse(localStorage.getItem(STORAGE_KEY)||'[]');}catch{clientData=[];toast('Dati corrotti','error');}};
+const genId = () => `c_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
+const esc = txt => txt ? String(txt).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])) : '';
+const getTodayString = () => new Date().toISOString().split('T')[0];
+const normalizeUrl = (url) => { if (!url) return ''; return url.startsWith('http') ? url : `https://${url}`; };
+
+
+const statusClass = s => {
+    const m = s?.toLowerCase().trim() || '';
+    if (m.includes('in delibera')) return 'status-in-delibera';
+    if (m.includes('non interessato')) return 'status-non-interessato';
+    if (m.includes('inviato documenti')) return 'status-inviato-documenti';
+    if (m.includes('risentire più avanti')) return 'status-risentire-piu-avanti';
+    if (m.includes('fissato')) return 'status-fissato';
+    if (m.includes('non risponde')) return 'status-non-risponde';
+    if (m.includes('annullato')) return 'status-annullato';
+    if (m.includes('nuovo cliente')) return 'status-nuovo-cliente';
+    if (m.includes('mandato firmato')) return 'status-mandato-firmato';
+    return 'status-altro';
+};
+
+const formatItalianDate = (dateString) => {
+    if(!dateString)return null;
+    let normStr = dateString.split('T')[0];
+    const date=new Date(normStr);
+    if(isNaN(date.getTime())) return dateString;
+    return new Intl.DateTimeFormat('it-IT').format(date);
+};
+
+const formatDateTimeForDisplay = (val) => {
+    if (!val) return '<span class="text-gray-400 dark:text-gray-500">N/D</span>';
+    try {
+        const date = new Date(val);
+        if(isNaN(date.getTime())) return esc(val);
+        return new Intl.DateTimeFormat('it-IT', { dateStyle: 'short', timeStyle: 'short' }).format(date);
+    } catch { return esc(val); }
+};
+
+const formatDateTimeForGoogle = (dateObj) => dateObj&&!isNaN(dateObj.getTime())?dateObj.toISOString().replace(/[\-:]|\.\d{3}/g,''):'';
+
+const parseDateTimeStringForSort = (dtStr) => {
+    if(!dtStr) return null;
+    try { return new Date(dtStr); }
+    catch { return null; }
+};
+
+function normalizeInizio(val) {
+    if (!val || (val instanceof Date && isNaN(val))) return '';
+    if (val instanceof Date) return val.toISOString().slice(0, 16);
+    let str = String(val).trim();
+    if (str.includes('T') && str.length >= 16) return str.slice(0, 16);
+    const matchSlashOrDot = str.match(/^(\d{1,2})[\/\.](\d{1,2})[\/\.](\d{2,4}),?\s*(\d{1,2}:\d{2})?/);
+    if (matchSlashOrDot) {
+        let [, day, month, year, time] = matchSlashOrDot;
+        year = year.length === 2 ? `20${year}` : year;
+        time = time || '00:00';
+        return `${year}-${month.padStart(2,'0')}-${day.padStart(2,'0')}T${time}`;
+    }
+    return str;
+}
+
+const parseImportDate = (val) => {
+    if(!val)return'';
+    if(val instanceof Date&&!isNaN(val))return val.toISOString().split('T')[0];
+    let str=String(val).trim().split('T')[0];
+    if(/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
+    const matchSlashOrDot = str.match(/^(\d{1,2})[\/\.](\d{1,2})[\/\.](\d{4})/);
+    if(matchSlashOrDot) {
+        const [, day, month, year] = matchSlashOrDot;
+        return `${year}-${month.padStart(2,'0')}-${day.padStart(2,'0')}`;
+    }
+    return '';
+};
+
+
+/***** RENDERING E UI *****/
+function cardHTML(c) {
+    const na = '<span class="text-gray-400 dark:text-gray-500">N/D</span>';
+    const cardV = v => v ? esc(v) : na;
+    const cardD = v => v ? formatItalianDate(v) : na;
+    const cardTelLink = (t, v) => v ? `<a class="text-indigo-500 hover:underline" href="${t}:${esc(v)}" target="_blank" rel="noopener noreferrer">${esc(v)}</a>` : na;
+    const cardSiteLink = (url) => {
+        if (!url) return na;
+        const normalized = normalizeUrl(url);
+        return `<a class="text-indigo-500 hover:underline" href="${esc(normalized)}" target="_blank" rel="noopener noreferrer">${esc(url)}</a>`;
+    };
+    
+    const fullAddr = [c.INDIRIZZO, c.CITTA, c.CAP].filter(Boolean).map(esc).join(', ');
+
+    return `
+    <div class="client-card panel-bg rounded-2xl border-2 p-6 flex flex-col shadow-xl" data-id="${c.id}">
+        <div class="flex-grow">
+            <div class="flex justify-between items-start mb-5">
+                <h3 class="text-xl font-bold pr-2">${esc(c.CLIENTE)}</h3>
+                <span class="status-badge ${statusClass(c.ESITO)} flex-shrink-0">${esc(c.ESITO) || 'N/D'}</span>
+            </div>
+            <div class="space-y-3 text-sm">
+                <p class="flex justify-between gap-2"><strong class="font-semibold text-gray-600 dark:text-gray-400">Oggetto:</strong><span class="text-right">${cardV(c.OGGETTO)}</span></p>
+                <div class="border-t my-2 border-gray-300 dark:border-gray-700"></div>
+                <p class="flex justify-between gap-2"><strong class="font-semibold text-gray-600 dark:text-gray-400">Appuntamento:</strong><span class="text-right font-bold text-indigo-600 dark:text-indigo-400">${formatDateTimeForDisplay(c.INIZIO)}</span></p>
+                <p class="flex justify-between gap-2"><strong class="font-semibold text-gray-600 dark:text-gray-400">Referente:</strong><span class="text-right">${cardV(c.NOME_REFERENTE)}</span></p>
+                <p class="flex justify-between gap-2"><strong class="font-semibold text-gray-600 dark:text-gray-400">P.IVA:</strong><span class="text-right">${cardV(c['P.IVA'])}</span></p>
+                <div class="border-t my-2 border-gray-300 dark:border-gray-700"></div>
+                <p class="flex justify-between gap-2"><strong class="font-semibold text-gray-600 dark:text-gray-400">Telefono:</strong><span class="text-right">${cardTelLink('tel', c.TELEFONO)}</span></p>
+                <p class="flex justify-between gap-2"><strong class="font-semibold text-gray-600 dark:text-gray-400">Cellulare:</strong><span class="text-right">${cardTelLink('tel', c.CELL)}</span></p>
+                <p class="flex justify-between gap-2"><strong class="font-semibold text-gray-600 dark:text-gray-400">Email:</strong><span class="text-right">${cardTelLink('mailto', c.EMAIL)}</span></p>
+                <p class="flex justify-between gap-2"><strong class="font-semibold text-gray-600 dark:text-gray-400">Sito Web:</strong><span class="text-right truncate" style="max-width: 150px;">${cardSiteLink(c.SITO)}</span></p>
+                <p class="flex justify-between gap-2"><strong class="font-semibold text-gray-600 dark:text-gray-400">Indirizzo:</strong><span class="text-right">${fullAddr || na}</span></p>
+                <div class="border-t my-2 border-gray-300 dark:border-gray-700"></div>
+                <div class="space-y-1"><strong class="font-semibold text-gray-600 dark:text-gray-400">Note:</strong><p class="text-xs whitespace-pre-line break-words bg-gray-100 dark:bg-gray-800 p-3 rounded-lg mt-2">${c.NOTE ? esc(c.NOTE) : na}</p></div>
+                <div class="border-t my-2 border-gray-300 dark:border-gray-700"></div>
+                 <p class="flex justify-between gap-2"><strong class="font-semibold text-gray-600 dark:text-gray-400">Ult.Modifica:</strong><span class="card-value text-right">${cardD(c.DATA_ULTIMA_MODIFICA)}</span></p>
+            </div>
+        </div>
+      <div class="mt-5 flex flex-wrap justify-end gap-3 border-t pt-5 border-gray-300 dark:border-gray-600">
+        <button class="btn bg-gradient-to-r from-green-400 to-green-500 text-white hover:from-green-500 hover:to-green-600 px-4 py-2" data-act="gcal">GCal</button>
+        <button class="btn bg-gradient-to-r from-indigo-400 to-indigo-500 text-white hover:from-indigo-500 hover:to-indigo-600 px-4 py-2" data-act="edit">Modifica</button>
+        <button class="btn bg-gradient-to-r from-red-400 to-red-500 text-white hover:from-red-500 hover:to-red-600 px-4 py-2" data-act="del">Elimina</button>
+      </div>
+    </div>`;
+}
+
+
+function render(list) {
+    if(dom.loader)dom.loader.style.display='none';
+    dom.clientList.innerHTML=list.length?list.map(cardHTML).join(''):`<div class="panel-bg col-span-full text-center p-12 rounded-2xl shadow-xl"><h3 class="text-2xl font-bold mb-3">Nessun cliente trovato</h3><p class="text-gray-600 dark:text-gray-400">Prova a cambiare i filtri o aggiungi un nuovo cliente.</p></div>`;
+    updateStats();
+}
+
+function updateStats() {
+    const total = clientData.length;
+    dom.total.textContent = total;
+    const todayStr = getTodayString();
+    const appointmentsToday = clientData.filter(c => c.INIZIO && normalizeInizio(c.INIZIO).startsWith(todayStr)).length;
+    dom.today.textContent = appointmentsToday;
+    const toFollowUp = clientData.filter(c => (c.ESITO || '').toUpperCase().includes('RISENTIRE PIÙ AVANTI')).length;
+    dom.follow.textContent = toFollowUp;
+    const mandatiFirmatiCount = clientData.filter(c => (c.ESITO || '').toUpperCase().includes('MANDATO FIRMATO')).length;
+    dom.mandatiFirmati.textContent = mandatiFirmatiCount;
+    const successful = clientData.filter(c => ['IN DELIBERA', 'MANDATO FIRMATO'].includes(c.ESITO?.toUpperCase())).length;
+    dom.rate.textContent = `${total > 0 ? ((successful / total) * 100).toFixed(1) : 0}%`;
+}
+
+function showModal(isEdit=false) {
+    dom.modalTitle.textContent = isEdit ? 'Modifica Cliente' : 'Aggiungi Cliente';
+    dom.form.reset();
+    if (isEdit && editingId) {
+        const client = clientData.find(c => c.id === editingId);
+        if (client) {
+            Object.keys(client).forEach(key => {
+                const formKey = key === 'P.IVA' ? 'P_IVA' : key;
+                const input = dom.form.elements[formKey];
+                if (input) {
+                    input.value = client[key] || '';
+                }
+            });
+        }
+    }
+    dom.modal.classList.add('active');
+}
+
+function hideModal() { dom.modal.classList.remove('active'); editingId=null; }
+
+function showConfirmDialog({title,message,onConfirm}) {
+    dom.dlgTitle.textContent=title;
+    dom.dlgMsg.textContent=message;
+    const newOkButton=dom.dlgOk.cloneNode(true);
+    dom.dlgOk.parentNode.replaceChild(newOkButton,dom.dlgOk);
+    dom.dlgOk=newOkButton;
+    dom.dlgOk.onclick=()=>{onConfirm();hideConfirmDialog();};
+    dom.dlg.classList.add('active');
+}
+function hideConfirmDialog() { dom.dlg.classList.remove('active');}
+
+/***** FILTRI E MANIPOLAZIONE DATI *****/
+function applyFilters() {
+    const n = dom.fNome.value.toLowerCase().trim();
+    const c = dom.fCitta.value.toLowerCase().trim();
+    const s = dom.fStato.value.toUpperCase();
+
+    filteredClients = clientData.filter(x => 
+        (x.CLIENTE || '').toLowerCase().includes(n) &&
+        (x.CITTA || '').toLowerCase().includes(c) &&
+        (!s || (x.ESITO || '').toUpperCase().includes(s))
+    );
+    filteredClients.sort((a,b)=>(new Date(b.DATA_ULTIMA_MODIFICA)||0)-(new Date(a.DATA_ULTIMA_MODIFICA)||0));
+    render(filteredClients);
+}
+
+function handleFormSubmit(e) {
+    e.preventDefault();
+    const frmD = new FormData(dom.form);
+    const nCD = {};
+    frmD.forEach((v, k) => { nCD[k === 'P_IVA' ? 'P.IVA' : k] = v.trim(); });
+    nCD.ESITO = (nCD.ESITO || 'NUOVO CLIENTE').toUpperCase();
+    nCD.DATA_ULTIMA_MODIFICA = getTodayString();
+
+    if (editingId) {
+        const idx = clientData.findIndex(cl => cl.id === editingId);
+        if (idx > -1) clientData[idx] = { ...clientData[idx], ...nCD };
+        toast('Cliente aggiornato');
+    } else {
+        nCD.id = genId();
+        nCD.DATA_CREAZIONE = getTodayString();
+        clientData.unshift(nCD);
+    }
+    save(); applyFilters(); hideModal();
+}
+
+function handleDelete(id) {
+    showConfirmDialog({ title:'Conferma Eliminazione', message:'Vuoi davvero eliminare questo cliente?',
+        onConfirm:()=>{ clientData=clientData.filter(c=>c.id!==id); save(); applyFilters(); toast('Cliente eliminato'); }
+    });
+}
+
+function handleClearAllData() {
+    showConfirmDialog({ title:'Azzerare Tutti i Dati?', message:'Questa azione cancellerà tutti i clienti. Sei sicuro?',
+        onConfirm:()=>{ clientData=[]; save(); applyFilters(); toast('Dati cancellati.'); }
+    });
+}
+
+/***** IMPORTAZIONE FILE *****/
+function handleFile(e) {
+    const f=e.target.files[0]; if(!f) return;
+    const ext=f.name.split('.').pop().toLowerCase();
+    const reader=new FileReader();
+    reader.onloadstart=()=>dom.loader.style.display='block';
+    reader.onerror=()=>{dom.loader.style.display='none';toast('Errore lettura file.','error');};
+
+    let parserFn;
+    if (['xlsx', 'xls'].includes(ext)) { reader.readAsArrayBuffer(f); parserFn = () => XLSX.utils.sheet_to_json(XLSX.read(new Uint8Array(reader.result),{type:'array'}).Sheets[XLSX.read(new Uint8Array(reader.result),{type:'array'}).SheetNames[0]]); } 
+    else if (ext === 'csv') { reader.readAsText(f, 'UTF-8'); parserFn = () => Papa.parse(reader.result,{header:true,skipEmptyLines:true}).data; } 
+    else if (ext === 'json') { reader.readAsText(f, 'UTF-8'); parserFn = () => JSON.parse(reader.result); }
+    else { toast('Formato non supportato: '+ext, 'error'); return; }
+    
+    reader.onload = () => {
+        try { const data = parserFn(); processImportedData(data); } 
+        catch (err) { toast(`Errore parsing: ${err.message}`,'error'); } 
+        finally { dom.loader.style.display='none'; e.target.value=''; }
+    };
+}
+
+function rowToClient(row) {
+    const pick = (obj, keys) => {
+        const normalize = str => String(str||'').toLowerCase().replace(/[^a-z0-9]/gi, '');
+        for (const k of keys) {
+            const foundKey = Object.keys(obj).find(rk => normalize(rk) === normalize(k));
+            if (foundKey && obj[foundKey] != null) return String(obj[foundKey]).trim();
+        } return '';
+    };
+    const ragioneSociale = pick(row, ['CLIENTE', 'Ragione Sociale']);
+    if (!ragioneSociale) return null;
+
+    return {
+        id: row.id || genId(), OGGETTO: pick(row, ['OGGETTO']), CLIENTE: ragioneSociale, 'P.IVA': pick(row, ['P.IVA']),
+        NOME_REFERENTE: pick(row, ['NOME REFERENTE']), ESITO: pick(row, ['ESITO']).toUpperCase()||'NUOVO CLIENTE',
+        CHIUSO_NEGATIVO: pick(row,['CHIUSO NEGATIVO']), INIZIO: normalizeInizio(pick(row, ['INIZIO', 'Data Appuntamento'])),
+        DATA_ULTIMA_MODIFICA: parseImportDate(pick(row,['DATA ULTIMA MODIFICA']))||getTodayString(),
+        CAMPAGNA_RIFERIMENTO: pick(row,['CAMPAGNA RIFERIMENTO']), INDIRIZZO: pick(row, ['INDIRIZZO']),
+        CITTA: pick(row, ['CITTA', 'Città']), CAP: pick(row, ['CAP']), TELEFONO: pick(row, ['TELEFONO']), EMAIL: pick(row, ['EMAIL']),
+        SITO: pick(row, ['SITO', 'Website', 'URL']), CELL: pick(row, ['CELL', 'Cellulare', 'Mobile']),
+        DATA_CREAZIONE: parseImportDate(pick(row,['DATA CREAZIONE']))||getTodayString(), NOTE: pick(row, ['NOTE']),
+    };
+}
+
+function processImportedData(data) {
+    if(!Array.isArray(data) || data.length === 0) return toast('Nessun dato valido.','warning');
+    const newClients = data.map(rowToClient).filter(Boolean);
+    if(newClients.length === 0) return toast('Nessun cliente valido importato.','warning');
+    showConfirmDialog({ title:'Conferma Importazione', message:`Trovati ${newClients.length} clienti. Aggiungerli?`,
+        onConfirm: () => { clientData.push(...newClients); save(); applyFilters(); toast(`${newClients.length} clienti importati.`, 'success'); }
+    });
+}
+
+/***** ESPORTAZIONE FILE *****/
+const exportFile = (data, filename, type) => { const blob = new Blob([data], {type}); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = filename; a.click(); URL.revokeObjectURL(url); };
+function exportToJSON() { if(!clientData.length)return toast('Nessun dato.','warning'); exportFile(JSON.stringify(clientData,null,2),`backup_${getTodayString()}.json`,'application/json'); toast('Backup JSON creato.');}
+function exportToCSV() { if(!filteredClients.length)return toast('Nessun cliente da esportare.','warning'); exportFile(""+Papa.unparse(filteredClients),`export_${getTodayString()}.csv`,'text/csv;charset=utf-8;'); toast('CSV esportato.');}
+function exportToPDF() {
+    if(!filteredClients.length)return toast('Nessun cliente da esportare.','warning');
+    const { jsPDF } = window.jspdf; const doc = new jsPDF();
+    const head = [['Cliente','Tel/Cell','Esito','Sito']];
+    const body = filteredClients.map(c=>[c.CLIENTE||'', (c.TELEFONO || c.CELL) || '', c.ESITO||'',c.SITO||'']);
+    doc.autoTable({head,body,startY:20,headStyles:{fillColor:[74,85,104]},styles:{fontSize:8}});
+    doc.text("Lista Clienti",14,15); doc.save(`clienti_${getTodayString()}.pdf`); toast('PDF esportato.');
+}
+
+/***** GESTIONE EVENTI PRINCIPALI *****/
+function handleCardClick(e) {
+    const actionElement = e.target.closest('[data-act]');
+    if (!actionElement || e.target.closest('a')) return;
+    e.stopPropagation();
+    const id = actionElement.closest('.client-card').dataset.id;
+    editingId = id; const action = actionElement.dataset.act;
+    if(action==='edit') showModal(true);
+    else if(action==='del') handleDelete(id);
+    else if(action==='gcal') handleGCalClick(id);
+}
+function handleGCalClick(id) {
+    const client = clientData.find(c => c.id === id); if (!client || !client.INIZIO) return toast('Appuntamento non impostato.','warning');
+    const startDate = new Date(normalizeInizio(client.INIZIO)); if(isNaN(startDate)) return toast('Data appuntamento non valida.', 'error');
+    const endDate = new Date(startDate.getTime() + 36e5);
+    const url = new URL('https://calendar.google.com/calendar/render');
+    url.searchParams.set('action', 'TEMPLATE'); url.searchParams.set('text', `Appuntamento: ${client.CLIENTE}`);
+    url.searchParams.set('dates', `${formatDateTimeForGoogle(startDate)}/${formatDateTimeForGoogle(endDate)}`);
+    url.searchParams.set('details', `Referente: ${client.NOME_REFERENTE||''}\nTel: ${client.TELEFONO||''}\nCell: ${client.CELL||''}\nNote: ${client.NOTE||''}`);
+    url.searchParams.set('location', `${client.INDIRIZZO||''}, ${client.CITTA||''}`.trim());
+    window.open(url.toString(),'_blank');
+}
+
+/***** TEMA E SFONDO *****/
+function setupThemeAndBackground() {
+    const savedTheme=localStorage.getItem(THEME_KEY); const html=document.documentElement; const toggleSpan=dom.themeToggle.querySelector('span:last-child');
+    if(savedTheme==='dark'||(!savedTheme&&window.matchMedia('(prefers-color-scheme:dark)').matches)){html.classList.add('dark');toggleSpan.classList.add('dark:translate-x-6');}
+    else{html.classList.remove('dark');toggleSpan.classList.remove('dark:translate-x-6');}
+    dom.themeToggle.addEventListener('click',()=>{html.classList.toggle('dark');localStorage.setItem(THEME_KEY,html.classList.contains('dark')?'dark':'light');toggleSpan.classList.toggle('dark:translate-x-6');});
+    const savedBg=localStorage.getItem(BG_KEY);if(savedBg)document.body.style.backgroundImage=`url(${savedBg})`;
+    dom.bgInput.addEventListener('change',e=>{const f=e.target.files[0];if(f&&f.type.startsWith('image/')){const r=new FileReader();r.onload=ev=>{localStorage.setItem(BG_KEY,ev.target.result);document.body.style.backgroundImage=`url(${ev.target.result})`;};r.readAsDataURL(f);}});
+    dom.btnResetBg.addEventListener('click',()=>{localStorage.removeItem(BG_KEY);document.body.style.backgroundImage='';});
+}
+
+/***** INIZIALIZZAZIONE *****/
+function init() {
+    setupThemeAndBackground(); load();
+    dom.btnAdd.addEventListener('click',()=>showModal(false));
+    dom.form.addEventListener('submit',handleFormSubmit);
+    dom.modal.addEventListener('click',e=>e.target===dom.modal&&hideModal());
+    dom.btnModalCancel.addEventListener('click',hideModal);
+    [dom.fNome,dom.fCitta,dom.fStato].forEach(el=>el.addEventListener('input',applyFilters));
+    dom.btnFiltra.addEventListener('click',applyFilters);
+    dom.clientList.addEventListener('click',handleCardClick);
+    dom.btnClear.addEventListener('click',handleClearAllData);
+    dom.file.addEventListener('change',handleFile);
+    dom.jsonBackupInput.addEventListener('change',handleFile);
+    dom.btnJSON.addEventListener('click',exportToJSON);
+    dom.btnCSV.addEventListener('click',exportToCSV);
+    dom.btnPDF.addEventListener('click',exportToPDF);
+    dom.dlgCancel.addEventListener('click',hideConfirmDialog);
+    dom.dlg.addEventListener('click',e=>e.target===dom.dlg&&hideConfirmDialog());
+    applyFilters();
+}
+
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>
